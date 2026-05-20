@@ -91,12 +91,43 @@ export async function POST(request: Request) {
   }
 
   // ---------------------------------------------------------------
-  // 4. Llamar Claude Vision
+  // 4. Cargar catálogo del centro (OS + prácticas) para inyectar en prompt Claude
+  // ---------------------------------------------------------------
+  let catalogo = null;
+  try {
+    const [{ data: os }, { data: practicas }] = await Promise.all([
+      supabase
+        .from("obras_sociales")
+        .select("nombre, aliases")
+        .eq("tenant_id", profile.tenant_id)
+        .eq("activa", true)
+        .order("nombre"),
+      supabase
+        .from("practicas")
+        .select("nombre, codigo_nomenclador, servicio")
+        .eq("tenant_id", profile.tenant_id)
+        .eq("activa", true)
+        .order("nombre"),
+    ]);
+    catalogo = {
+      obras_sociales: (os || []).map((r: any) => ({ nombre: r.nombre, aliases: r.aliases || [] })),
+      practicas: (practicas || []).map((r: any) => ({
+        nombre: r.nombre,
+        codigo: r.codigo_nomenclador,
+        servicio: r.servicio,
+      })),
+    };
+  } catch (e) {
+    console.warn("No pude cargar catálogo, Claude usará prompt genérico:", e);
+  }
+
+  // ---------------------------------------------------------------
+  // 5. Llamar Claude Vision
   // ---------------------------------------------------------------
   const inicioIA = Date.now();
   let datos;
   try {
-    datos = await extraerDatosPedido(body.archivo_base64, body.media_type);
+    datos = await extraerDatosPedido(body.archivo_base64, body.media_type, catalogo);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
