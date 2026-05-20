@@ -232,14 +232,3 @@ function IntegracionRow({
     </div>
   );
 }
-tado</Badge>
-          <Button variant="ghost" size="sm">Configurar</Button>
-        </div>
-      )}
-      {estado === "conectar" && <Button variant="glow" size="sm">Conectar</Button>}
-      {estado === "proximamente" && (
-        <Badge variant="default" className="text-stone-400">Próximamente</Badge>
-      )}
-    </div>
-  );
-}
