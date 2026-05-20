@@ -14,6 +14,8 @@ import { fileToBase64 } from "@/lib/utils";
 import { procesarPedido } from "@/lib/api/edge-functions";
 import { cn } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/jpg",

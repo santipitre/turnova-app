@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { formatFecha } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Turnos" };
 
 interface Props {

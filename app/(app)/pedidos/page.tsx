@@ -18,6 +18,8 @@ import { StatusDot } from "@/components/lumen/status-dot";
 import { ConfidenceBar } from "@/components/lumen/confidence-bar";
 import { formatFecha } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Pedidos Médicos" };
 
 interface Props {

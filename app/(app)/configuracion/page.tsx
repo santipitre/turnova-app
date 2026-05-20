@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Building2, Users, Settings, Plug, CreditCard } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Configuración" };
 
 export default async function ConfiguracionPage() {

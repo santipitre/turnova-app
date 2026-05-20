@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Obras Sociales" };
 
 export default async function ObrasSocialesPage() {

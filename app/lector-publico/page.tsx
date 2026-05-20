@@ -9,6 +9,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, Loader2, FileText, X, CheckCircle2, Sparkles } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/jpg",

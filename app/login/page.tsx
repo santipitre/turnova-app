@@ -1,6 +1,9 @@
 import { LoginForm } from "@/components/auth/login-form";
 import { PyralisLogo } from "@/components/brand/pyralis-logo";
 
+// Skip prerender en build (el login usa client components con useState)
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex">

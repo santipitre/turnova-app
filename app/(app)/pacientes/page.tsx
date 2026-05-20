@@ -10,6 +10,8 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatFecha, getIniciales } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Pacientes" };
 
 export default async function PacientesPage() {

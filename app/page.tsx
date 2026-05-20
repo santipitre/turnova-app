@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/server-session";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Página raíz: redirige a /dashboard si hay sesión Pyralis válida, a /landing si no.
  * El landing es público y vende el SaaS a visitantes nuevos.

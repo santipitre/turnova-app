@@ -25,6 +25,8 @@ import { StatusDot } from "@/components/lumen/status-dot";
 import { PedidoDetailActions } from "@/components/pedidos/pedido-detail-actions";
 import { formatFecha, formatTiempoRelativo } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function PedidoDetailPage({ params }: { params: { id: string } }) {
   const user = getServerUser();
   if (!user) redirect("/login");

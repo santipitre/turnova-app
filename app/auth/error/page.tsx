@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+export const dynamic = "force-dynamic";
+
 export default function AuthErrorPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-8">

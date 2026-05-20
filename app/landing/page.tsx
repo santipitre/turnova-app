@@ -26,6 +26,8 @@ import { AnimatedCounter } from "@/components/lumen/animated-counter";
 import { FireflyField } from "@/components/lumen/firefly-field";
 import { TurnovaIcon } from "@/components/brand/turnova-icon";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Turnova — Asigná turnos médicos con IA · Pyralis",
   description:

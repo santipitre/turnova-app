@@ -20,6 +20,8 @@ import { ConfidenceBar } from "@/components/lumen/confidence-bar";
 import { BarChartTurnos, DonutChartCanales } from "@/components/dashboard/charts";
 import { formatFecha } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
