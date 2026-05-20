@@ -1,0 +1,355 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   PYRALIS LUMEN v2 — Design System Tokens
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Shadcn-compat tokens (light mode) */
+    --background: 60 9% 98%;        /* lumen-canvas light */
+    --foreground: 24 10% 4%;        /* lumen-ink light */
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 4%;
+    --primary: 24 10% 4%;
+    --primary-foreground: 60 9% 98%;
+    --secondary: 24 6% 95%;
+    --secondary-foreground: 24 10% 4%;
+    --muted: 24 6% 95%;
+    --muted-foreground: 28 6% 32%;
+    --accent: 38 92% 56%;
+    --accent-foreground: 24 10% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 60 9% 98%;
+    --border: 24 6% 90%;
+    --input: 24 6% 90%;
+    --ring: 38 92% 50%;
+    --radius: 12px;
+  }
+
+  .dark {
+    --background: 240 7% 4%;        /* lumen-canvas dark */
+    --foreground: 60 9% 98%;        /* lumen-ink dark */
+    --card: 240 8% 9%;              /* lumen-surface dark */
+    --card-foreground: 60 9% 98%;
+    --popover: 240 8% 9%;
+    --popover-foreground: 60 9% 98%;
+    --primary: 60 9% 98%;
+    --primary-foreground: 24 10% 4%;
+    --secondary: 240 7% 12%;
+    --secondary-foreground: 60 9% 98%;
+    --muted: 240 7% 12%;
+    --muted-foreground: 28 6% 65%;
+    --accent: 38 92% 56%;
+    --accent-foreground: 24 10% 4%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 60 9% 98%;
+    --border: 240 7% 16%;
+    --input: 240 7% 16%;
+    --ring: 38 92% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-stone-950 text-stone-100 font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  /* Smooth focus rings */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-pyralis-glow ring-offset-2 ring-offset-stone-950;
+  }
+
+  /* Mejor rendering de números en tablas y datos */
+  table, .lumen-mono, [class*="lumen-mono"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: #FBBF24;
+    color: #0C0A09;
+  }
+}
+
+@layer components {
+  /* ============ LEGACY v1 (retro-compat) ============ */
+  .card-pyralis {
+    @apply bg-white rounded-md border border-slate-200 shadow-pyralis-sm transition-shadow;
+  }
+  .card-pyralis:hover {
+    @apply shadow-pyralis;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium text-stone-400 transition-colors hover:bg-white/5 hover:text-stone-100;
+  }
+  .nav-item-active {
+    @apply bg-white/10 text-white hover:bg-white/10 hover:text-white;
+  }
+
+  .btn-glow {
+    @apply bg-pyralis-glow text-pyralis-midnight font-semibold rounded px-4 py-2 transition-all shadow-pyralis-sm;
+  }
+  .btn-glow:hover {
+    @apply bg-pyralis-glowHover shadow-pyralis-glow;
+  }
+
+  /* ============ LUMEN v2 ============ */
+
+  /* Glass surfaces */
+  .lumen-glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .lumen-glass-dark {
+    background: rgba(22, 22, 26, 0.7);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Gradient text — signature Pyralis */
+  .lumen-text-glow {
+    background: linear-gradient(135deg, #FBBF24 0%, #F97316 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .lumen-text-aurora {
+    background: linear-gradient(135deg, #A78BFA 0%, #60A5FA 50%, #5EEAD4 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-shift 8s ease-in-out infinite;
+  }
+
+  /* Shimmer skeleton */
+  .lumen-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(229, 229, 229, 0) 0%,
+      rgba(229, 229, 229, 0.5) 50%,
+      rgba(229, 229, 229, 0) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Aurora flow para IA states */
+  .lumen-aurora-bg {
+    background: linear-gradient(
+      135deg,
+      #A78BFA 0%,
+      #60A5FA 33%,
+      #5EEAD4 66%,
+      #A78BFA 100%
+    );
+    background-size: 300% 300%;
+    animation: aurora-flow 6s ease-in-out infinite;
+  }
+
+  /* ============ PYRALIS GRID PATTERN (hero background) ============ */
+  .pyralis-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 80px 80px;
+    background-position: center center;
+  }
+
+  /* Amber radial glow centrado (estilo Pyralis main) */
+  .pyralis-amber-glow {
+    background: radial-gradient(
+      ellipse 700px 500px at center 45%,
+      rgba(251, 191, 36, 0.18) 0%,
+      rgba(251, 146, 60, 0.08) 25%,
+      transparent 55%
+    );
+  }
+
+  /* Estados "EN PRODUCCIÓN" estilo ecosistema Pyralis */
+  .pyralis-status-pill {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider;
+    background: rgba(52, 211, 153, 0.1);
+    color: #34D399;
+    border: 1px solid rgba(52, 211, 153, 0.25);
+  }
+
+  /* ============ FIREFLY FIELD (Turnova hero) ============ */
+  .firefly {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(255, 248, 225, 1) 0%,
+      rgba(251, 191, 36, 0.9) 30%,
+      rgba(251, 191, 36, 0) 70%
+    );
+    box-shadow:
+      0 0 6px 1px rgba(251, 191, 36, 0.5),
+      0 0 14px 3px rgba(251, 191, 36, 0.25);
+    animation: firefly-drift var(--duration, 10s) ease-in-out infinite;
+    opacity: 0;
+  }
+
+  @keyframes firefly-drift {
+    0%, 100% {
+      transform: translate(0, 0);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.8;
+    }
+    50% {
+      transform: translate(calc(var(--drift-x, 30px) * 0.6), calc(var(--drift-y, -40px) * 0.6));
+      opacity: 1;
+    }
+    90% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(var(--drift-x, 30px), var(--drift-y, -40px));
+      opacity: 0;
+    }
+  }
+
+  /* Orb floating decorations */
+  .lumen-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.6;
+    pointer-events: none;
+    animation: orb-float 20s ease-in-out infinite;
+  }
+  .lumen-orb-glow {
+    background: radial-gradient(circle, #FBBF24 0%, transparent 70%);
+  }
+  .lumen-orb-ember {
+    background: radial-gradient(circle, #F97316 0%, transparent 70%);
+    animation-delay: -7s;
+  }
+  .lumen-orb-aurora {
+    background: radial-gradient(circle, #A78BFA 0%, transparent 70%);
+    animation-delay: -14s;
+  }
+
+  /* Hero containers */
+  .lumen-hero-dark {
+    background: linear-gradient(180deg, #16161A 0%, #0A0A0B 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Mesh gradient background */
+  .lumen-mesh-bg {
+    background-image:
+      radial-gradient(at 20% 20%, rgba(251, 191, 36, 0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 30%, rgba(249, 115, 22, 0.10) 0px, transparent 50%),
+      radial-gradient(at 70% 80%, rgba(167, 139, 250, 0.10) 0px, transparent 50%);
+  }
+
+  /* Buttons v2 */
+  .lumen-btn-glow {
+    @apply inline-flex items-center justify-center gap-2 rounded-lumen font-medium
+           bg-lumen-glow text-lumen-ink-light px-5 py-2.5
+           transition-all duration-fast ease-lumen-out
+           hover:bg-lumen-glowHover hover:shadow-lumen-glow
+           focus-visible:ring-2 focus-visible:ring-lumen-glow focus-visible:ring-offset-2;
+  }
+
+  .lumen-btn-ghost-dark {
+    @apply inline-flex items-center justify-center gap-2 rounded-lumen font-medium
+           bg-white/5 border border-white/10 text-white px-5 py-2.5
+           transition-all duration-fast ease-lumen-out
+           hover:bg-white/10 hover:border-white/20;
+  }
+
+  /* KPI card v2 */
+  .lumen-kpi-card {
+    @apply relative overflow-hidden rounded-lumen-lg border border-lumen-border-light
+           bg-white p-5 transition-all duration-fast ease-lumen-out
+           hover:-translate-y-0.5 hover:shadow-lumen-3;
+  }
+  .lumen-kpi-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(251,191,36,0.04) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* Status dots animados */
+  .lumen-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+  .lumen-dot-pulse {
+    @apply lumen-dot bg-lumen-pulse;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    animation: pulse-glow 2s infinite;
+  }
+  .lumen-dot-ember {
+    @apply lumen-dot bg-lumen-ember;
+  }
+  .lumen-dot-flag {
+    @apply lumen-dot bg-lumen-flag;
+  }
+  .lumen-dot-aurora {
+    @apply lumen-dot bg-lumen-aurora;
+  }
+
+  /* Divider con gradient sutil */
+  .lumen-divider {
+    @apply h-px w-full;
+    background: linear-gradient(90deg, transparent, rgb(231 229 228), transparent);
+  }
+  .dark .lumen-divider {
+    background: linear-gradient(90deg, transparent, rgb(39 39 46), transparent);
+  }
+
+  /* Confidence bar para IA */
+  .lumen-confidence-bar {
+    @apply relative h-1.5 w-full overflow-hidden rounded-full bg-lumen-border-light;
+  }
+  .lumen-confidence-fill {
+    @apply absolute inset-y-0 left-0 rounded-full transition-all duration-deliberate ease-lumen-out;
+  }
+  .lumen-confidence-low {
+    background: linear-gradient(90deg, #F87171, #F97316);
+  }
+  .lumen-confidence-medium {
+    background: linear-gradient(90deg, #F97316, #FBBF24);
+  }
+  .lumen-confidence-high {
+    background: linear-gradient(90deg, #FBBF24, #34D399);
+  }
+}
+
+/* ============================================================
+   ACCESIBILIDAD
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
