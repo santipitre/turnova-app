@@ -18,39 +18,75 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
 
   const supabase = createServiceClient();
 
-  const { data: pedido } = await supabase
-    .from("pedidos_medicos")
-    .select("*")
-    .eq("id", params.id)
-    .eq("tenant_id", user.tenant_id)
-    .maybeSingle();
-
+  // 1. Cargar el pedido (si falla, 404)
+  let pedido: any = null;
+  try {
+    const { data, error } = await supabase
+      .from("pedidos_medicos")
+      .select("*")
+      .eq("id", params.id)
+      .eq("tenant_id", user.tenant_id)
+      .maybeSingle();
+    if (error) {
+      console.error("[editar] error pedido:", error.message);
+    }
+    pedido = data;
+  } catch (err) {
+    console.error("[editar] excepción pedido:", err);
+  }
   if (!pedido) notFound();
 
-  // Cargar catálogo del tenant para los selects
-  const [{ data: obrasSociales }, { data: practicas }] = await Promise.all([
-    supabase
+  // 2. Cargar catálogo del tenant — con try/catch INDIVIDUAL para no
+  // romper el render si una de las dos tablas falla.
+  let obrasSociales: Array<{ id: string; nombre: string }> = [];
+  try {
+    const { data, error } = await supabase
       .from("obras_sociales")
       .select("id, nombre")
       .eq("tenant_id", user.tenant_id)
-      .order("nombre"),
-    supabase
+      .eq("activa", true)
+      .order("nombre");
+    if (error) {
+      console.error("[editar] error obras_sociales:", error.message);
+    } else if (data) {
+      obrasSociales = data;
+    }
+  } catch (err) {
+    console.error("[editar] excepción obras_sociales:", err);
+  }
+
+  let practicas: Array<{ id: string; nombre: string; servicio: string | null }> = [];
+  try {
+    const { data, error } = await supabase
       .from("practicas")
       .select("id, nombre, servicio")
       .eq("tenant_id", user.tenant_id)
-      .order("nombre"),
-  ]);
+      .eq("activa", true)
+      .order("nombre");
+    if (error) {
+      console.error("[editar] error practicas:", error.message);
+    } else if (data) {
+      practicas = data;
+    }
+  } catch (err) {
+    console.error("[editar] excepción practicas:", err);
+  }
 
-  // URL firmada del archivo (para preview en el form)
+  // 3. URL firmada del archivo (no bloqueante)
   let archivoUrl: string | null = pedido.archivo_url ?? null;
   if (pedido.archivo_storage_path) {
-    const { data: signed } = await supabase.storage
-      .from("pedidos-medicos")
-      .createSignedUrl(pedido.archivo_storage_path, 60 * 60 * 24);
-    if (signed?.signedUrl) archivoUrl = signed.signedUrl;
+    try {
+      const { data: signed } = await supabase.storage
+        .from("pedidos-medicos")
+        .createSignedUrl(pedido.archivo_storage_path, 60 * 60 * 24);
+      if (signed?.signedUrl) archivoUrl = signed.signedUrl;
+    } catch (err) {
+      console.warn("[editar] no se pudo firmar url:", err);
+    }
   }
 
   const datos = (pedido.extraccion_ia as Record<string, unknown>) || {};
+  const archivoTipo = pedido.archivo_storage_path?.endsWith(".pdf") ? "pdf" : "imagen";
 
   return (
     <div className="space-y-6">
@@ -71,6 +107,14 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
         <p className="text-stone-400 mt-1">
           Corregí los campos que la IA detectó mal. Los cambios sobreescriben la extracción.
         </p>
+        {(obrasSociales.length === 0 || practicas.length === 0) && (
+          <p className="text-amber-300/80 text-sm mt-2">
+            ⚠ No pude cargar el catálogo completo
+            {obrasSociales.length === 0 ? " (obras sociales)" : ""}
+            {practicas.length === 0 ? " (prácticas)" : ""}
+            . Podés tipear el valor a mano igual.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -84,10 +128,15 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
           </CardHeader>
           <CardContent className="p-0">
             {archivoUrl ? (
-              archivoUrl.toLowerCase().includes(".pdf") || pedido.archivo_storage_path?.endsWith(".pdf") ? (
+              archivoTipo === "pdf" ? (
                 <iframe src={archivoUrl} className="w-full h-[600px]" title="PDF del pedido" />
               ) : (
-                <a href={archivoUrl} target="_blank" rel="noopener noreferrer" className="block bg-stone-950">
+                <a
+                  href={archivoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block bg-stone-950"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={archivoUrl}
@@ -97,7 +146,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
                 </a>
               )
             ) : (
-              <div className="text-stone-500 p-8 text-center">Sin archivo</div>
+              <div className="text-stone-500 p-8 text-center">Sin archivo adjunto</div>
             )}
           </CardContent>
         </Card>
@@ -115,8 +164,8 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
             fecha_pedido: (datos.fecha_pedido as string | null) ?? "",
             urgencia_indicada: (datos.urgencia_indicada as boolean | undefined) ?? false,
           }}
-          obrasSociales={obrasSociales ?? []}
-          practicas={practicas ?? []}
+          obrasSociales={obrasSociales}
+          practicas={practicas}
         />
       </div>
     </div>

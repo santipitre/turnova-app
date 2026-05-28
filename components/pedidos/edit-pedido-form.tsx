@@ -82,50 +82,56 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
           <CardTitle className="text-stone-100 text-base">Campos extraídos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 pt-6">
-          {/* Práctica solicitada */}
+          {/* Práctica solicitada — input con datalist (sugiere del catálogo, permite tipear libre) */}
           <div className="space-y-1.5">
             <Label htmlFor="practica" className="flex items-center gap-2 text-stone-200">
               <Stethoscope className="h-3.5 w-3.5 text-amber-300" />
               Práctica solicitada
+              <span className="text-xs text-stone-500 font-normal ml-1">
+                ({practicas.length} en catálogo)
+              </span>
             </Label>
-            <select
+            <Input
               id="practica"
+              list="practicas-list"
               value={form.practica_detectada}
               onChange={(e) => update("practica_detectada", e.target.value)}
-              className="w-full rounded-md border border-stone-700 bg-stone-900 px-3 py-2 text-sm text-stone-100 focus:border-amber-400 focus:outline-none"
-            >
-              <option value="">— Seleccionar práctica del catálogo —</option>
-              {Object.entries(practicasPorServicio).map(([servicio, items]) => (
-                <optgroup key={servicio} label={servicio}>
-                  {items.map((p) => (
-                    <option key={p.id} value={p.nombre}>
-                      {p.nombre}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              placeholder="Empezá a escribir o elegí del catálogo…"
+              autoComplete="off"
+            />
+            <datalist id="practicas-list">
+              {Object.entries(practicasPorServicio).map(([servicio, items]) =>
+                items.map((p) => (
+                  <option key={p.id} value={p.nombre}>
+                    {servicio}
+                  </option>
+                )),
+              )}
+            </datalist>
           </div>
 
-          {/* Obra Social */}
+          {/* Obra Social — idem */}
           <div className="space-y-1.5">
             <Label htmlFor="os" className="flex items-center gap-2 text-stone-200">
               <Shield className="h-3.5 w-3.5 text-amber-300" />
               Obra social
+              <span className="text-xs text-stone-500 font-normal ml-1">
+                ({obrasSociales.length} en catálogo)
+              </span>
             </Label>
-            <select
+            <Input
               id="os"
+              list="obras-sociales-list"
               value={form.obra_social_detectada}
               onChange={(e) => update("obra_social_detectada", e.target.value)}
-              className="w-full rounded-md border border-stone-700 bg-stone-900 px-3 py-2 text-sm text-stone-100 focus:border-amber-400 focus:outline-none"
-            >
-              <option value="">— Seleccionar obra social del catálogo —</option>
+              placeholder="Empezá a escribir o elegí del catálogo…"
+              autoComplete="off"
+            />
+            <datalist id="obras-sociales-list">
               {obrasSociales.map((os) => (
-                <option key={os.id} value={os.nombre}>
-                  {os.nombre}
-                </option>
+                <option key={os.id} value={os.nombre} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
