@@ -122,12 +122,38 @@ export async function POST(request: Request) {
   }
 
   // ---------------------------------------------------------------
-  // 5. Llamar Claude Vision
+  // 4b. APRENDIZAJE — traer las últimas correcciones del operador
+  // para inyectarlas en el prompt como "lecciones aprendidas".
+  // No bloqueante: si falla, seguimos sin correcciones.
+  // ---------------------------------------------------------------
+  let correcciones: import("@/lib/api/claude-vision").CorreccionPrevia[] = [];
+  try {
+    const { data: correccionesData, error: corrErr } = await supabase.rpc(
+      "get_correcciones_relevantes",
+      { p_tenant_id: profile.tenant_id, p_limit: 8 },
+    );
+    if (corrErr) {
+      console.warn("[procesar] no pude traer correcciones:", corrErr.message);
+    } else if (correccionesData) {
+      correcciones = correccionesData;
+      console.log(`[procesar] inyectando ${correcciones.length} correcciones previas como contexto IA`);
+    }
+  } catch (e) {
+    console.warn("[procesar] error trayendo correcciones (no bloqueante):", e);
+  }
+
+  // ---------------------------------------------------------------
+  // 5. Llamar Claude Vision con catálogo + correcciones previas
   // ---------------------------------------------------------------
   const inicioIA = Date.now();
   let datos;
   try {
-    datos = await extraerDatosPedido(body.archivo_base64, body.media_type, catalogo);
+    datos = await extraerDatosPedido(
+      body.archivo_base64,
+      body.media_type,
+      catalogo,
+      correcciones,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(

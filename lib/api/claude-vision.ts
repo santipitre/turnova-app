@@ -45,7 +45,93 @@ export interface CatalogoCentro {
   practicas: Array<{ nombre: string; codigo?: string | null; servicio?: string | null }>;
 }
 
-function buildSystemPrompt(catalogo: CatalogoCentro | null): string {
+/**
+ * Correcciones previas que el operador hizo en pedidos anteriores.
+ * Se inyectan en el prompt como ejemplos few-shot para que la IA "aprenda"
+ * patrones específicos del centro (caligrafías típicas, formatos de OS, etc.).
+ */
+export interface CorreccionPrevia {
+  ia_practica?: string | null;
+  ia_obra_social?: string | null;
+  ia_medico?: string | null;
+  ia_matricula?: string | null;
+  ia_numero_afiliado?: string | null;
+  ia_diagnostico?: string | null;
+  ia_especialidad?: string | null;
+  humano_practica?: string | null;
+  humano_obra_social?: string | null;
+  humano_medico?: string | null;
+  humano_matricula?: string | null;
+  humano_numero_afiliado?: string | null;
+  humano_diagnostico?: string | null;
+  campos_corregidos?: string[];
+}
+
+/**
+ * Construye la sección de "lecciones aprendidas" del prompt.
+ * Convierte correcciones humanas previas en hints accionables.
+ */
+function buildLeccionesAprendidas(correcciones: CorreccionPrevia[]): string {
+  if (!correcciones || correcciones.length === 0) return "";
+
+  const ejemplos = correcciones
+    .map((c, i) => {
+      const cambios: string[] = [];
+      if (c.campos_corregidos?.includes("practica") && c.ia_practica !== c.humano_practica) {
+        cambios.push(
+          `  • Práctica: leíste "${c.ia_practica ?? "null"}" → correcto: "${c.humano_practica}"`,
+        );
+      }
+      if (c.campos_corregidos?.includes("obra_social") && c.ia_obra_social !== c.humano_obra_social) {
+        cambios.push(
+          `  • Obra social: leíste "${c.ia_obra_social ?? "null"}" → correcto: "${c.humano_obra_social}"`,
+        );
+      }
+      if (c.campos_corregidos?.includes("medico") && c.ia_medico !== c.humano_medico) {
+        cambios.push(
+          `  • Médico: leíste "${c.ia_medico ?? "null"}" → correcto: "${c.humano_medico}"`,
+        );
+      }
+      if (c.campos_corregidos?.includes("matricula") && c.ia_matricula !== c.humano_matricula) {
+        cambios.push(
+          `  • Matrícula: leíste "${c.ia_matricula ?? "null"}" → correcto: "${c.humano_matricula}"`,
+        );
+      }
+      if (
+        c.campos_corregidos?.includes("numero_afiliado") &&
+        c.ia_numero_afiliado !== c.humano_numero_afiliado
+      ) {
+        cambios.push(
+          `  • Nº afiliado: leíste "${c.ia_numero_afiliado ?? "null"}" → correcto: "${c.humano_numero_afiliado}"`,
+        );
+      }
+      if (cambios.length === 0) return null;
+      return `Ejemplo ${i + 1}:\n${cambios.join("\n")}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!ejemplos) return "";
+
+  return `
+
+# 📚 LECCIONES APRENDIDAS DE PEDIDOS PREVIOS (correcciones del operador)
+
+Estos son errores REALES que cometiste en pedidos pasados de este mismo centro. El operador los corrigió a mano. Aprendé de estos patrones para no repetirlos:
+
+${ejemplos}
+
+**Patrones a aplicar:**
+- Si una obra social aparece con un formato específico que ya corregimos, usá el formato correcto.
+- Si reconoces caligrafías de médicos que ya vimos antes, usá el nombre/matrícula correctos.
+- Si una práctica suele confundirse con otra similar, prestá MÁS atención esta vez.
+`;
+}
+
+function buildSystemPrompt(
+  catalogo: CatalogoCentro | null,
+  correcciones: CorreccionPrevia[] = [],
+): string {
   // Construir las listas para el prompt
   const osLines = (catalogo?.obras_sociales || [])
     .map((o) => {
@@ -84,6 +170,8 @@ ${practicasLines}
 **REGLA**: \`practica_solicitada\` DEBE ser el nombre EXACTO de una práctica de arriba. Si el pedido tiene código nomenclador, devolvelo en \`codigo_nomenclador\`. Si NINGUNA del catálogo encaja con lo que leíste → null y baja la confianza.
 `
       : "";
+
+  const leccionesSection = buildLeccionesAprendidas(correcciones);
 
   return `Sos un asistente que LEE pedidos médicos argentinos. Tu trabajo es transcribir lo que VE en la imagen, no interpretar ni completar con conocimiento médico general.
 
@@ -157,6 +245,7 @@ Si no podés leer un campo con 70%+ de certeza → devolvé null y bajá la conf
 | fecha_pedido | Arriba a la derecha, formato DD/MM/AA |
 | urgencia_indicada | Buscá "URGENTE", "URGENCIA" |
 ${catalogoSection}
+${leccionesSection}
 
 # REGLAS FIRMES (resumen)
 
@@ -208,6 +297,7 @@ export async function extraerDatosPedido(
   imagenBase64: string,
   mediaType: string,
   catalogo: CatalogoCentro | null = null,
+  correcciones: CorreccionPrevia[] = [],
 ): Promise<DatosExtraidos> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -231,7 +321,7 @@ export async function extraerDatosPedido(
   const body = {
     model: CLAUDE_MODEL,
     max_tokens: 2500,
-    system: buildSystemPrompt(catalogo),
+    system: buildSystemPrompt(catalogo, correcciones),
     messages: [
       {
         role: "user",

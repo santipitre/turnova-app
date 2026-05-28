@@ -46,7 +46,9 @@ export async function PATCH(
   // 3. Verificar que el pedido existe y pertenece al tenant
   const { data: pedido, error: fetchErr } = await supabase
     .from("pedidos_medicos")
-    .select("id, tenant_id, extraccion_ia")
+    .select(
+      "id, tenant_id, extraccion_ia, practica_detectada, obra_social_detectada, archivo_storage_path, confianza_ia",
+    )
     .eq("id", params.id)
     .eq("tenant_id", user.tenant_id)
     .maybeSingle();
@@ -83,10 +85,46 @@ export async function PATCH(
     if (os) obraSocialIdMatched = os.id;
   }
 
-  // 5. Merge extraccion_ia preservando metadata original + flags de edición humana
-  // NOTA: requiere_revision_manual vive DENTRO del JSON extraccion_ia, NO es columna.
+  // 5. Detectar campos que cambiaron (vs valores originales) y bumpear su confianza
   const extraccionPrevia = (pedido.extraccion_ia as Record<string, unknown>) || {};
   const matchingOk = !!(practicaIdMatched && obraSocialIdMatched);
+
+  const camposCorregidos: string[] = [];
+  const checkChange = (
+    campo: string,
+    valorPrev: string | null | undefined,
+    valorNuevo: string | undefined,
+  ) => {
+    const prev = (valorPrev ?? "").trim();
+    const nuevo = (valorNuevo ?? "").trim();
+    if (prev !== nuevo) camposCorregidos.push(campo);
+  };
+  checkChange("practica", pedido.practica_detectada, body.practica_detectada);
+  checkChange("obra_social", pedido.obra_social_detectada, body.obra_social_detectada);
+  checkChange("medico", extraccionPrevia.medico_solicitante as string | null, body.medico_solicitante);
+  checkChange("matricula", extraccionPrevia.matricula_medico as string | null, body.matricula_medico);
+  checkChange("numero_afiliado", extraccionPrevia.numero_afiliado as string | null, body.numero_afiliado);
+  checkChange("diagnostico", extraccionPrevia.diagnostico_presunto as string | null, body.diagnostico_presunto);
+  checkChange("fecha_pedido", extraccionPrevia.fecha_pedido as string | null, body.fecha_pedido);
+
+  // Bumpear confianza_por_campo a 1.0 para los campos editados (verde en UI)
+  const confianzaPrevia =
+    (extraccionPrevia.confianza_por_campo as Record<string, number> | undefined) || {};
+  const confianzaActualizada: Record<string, number> = { ...confianzaPrevia };
+  const CAMPO_TO_CONF_KEY: Record<string, string> = {
+    practica: "practica_solicitada",
+    obra_social: "obra_social",
+    medico: "medico_solicitante",
+    matricula: "matricula_medico",
+    numero_afiliado: "numero_afiliado",
+    diagnostico: "diagnostico_presunto",
+    fecha_pedido: "fecha_pedido",
+  };
+  for (const c of camposCorregidos) {
+    const k = CAMPO_TO_CONF_KEY[c];
+    if (k) confianzaActualizada[k] = 1.0;
+  }
+
   const nuevaExtraccion = {
     ...extraccionPrevia,
     medico_solicitante: body.medico_solicitante || null,
@@ -97,6 +135,7 @@ export async function PATCH(
     urgencia_indicada: !!body.urgencia_indicada,
     practica_id_matched: practicaIdMatched,
     obra_social_id_matched: obraSocialIdMatched,
+    confianza_por_campo: confianzaActualizada,
     // Si ahora hay match contra catálogo, el pedido sale de "requiere revisión"
     requiere_revision_manual: !matchingOk,
     // Marca de auditoría: este pedido fue corregido por un humano
@@ -127,9 +166,48 @@ export async function PATCH(
     );
   }
 
+  // 7. APRENDIZAJE — guardar la corrección en correcciones_ia para que la IA
+  // aprenda de este caso en futuros pedidos. No bloqueante.
+  if (camposCorregidos.length > 0) {
+    try {
+      const { error: corrErr } = await supabase.from("correcciones_ia").insert({
+        tenant_id: user.tenant_id,
+        pedido_medico_id: params.id,
+        // Valores que la IA tenía (antes de la corrección)
+        ia_practica: pedido.practica_detectada,
+        ia_obra_social: pedido.obra_social_detectada,
+        ia_medico: extraccionPrevia.medico_solicitante ?? null,
+        ia_matricula: extraccionPrevia.matricula_medico ?? null,
+        ia_numero_afiliado: extraccionPrevia.numero_afiliado ?? null,
+        ia_diagnostico: extraccionPrevia.diagnostico_presunto ?? null,
+        ia_especialidad: extraccionPrevia.especialidad_inferida ?? null,
+        ia_confianza_global: pedido.confianza_ia ?? null,
+        // Valores corregidos por el humano (la verdad)
+        humano_practica: body.practica_detectada || null,
+        humano_obra_social: body.obra_social_detectada || null,
+        humano_medico: body.medico_solicitante || null,
+        humano_matricula: body.matricula_medico || null,
+        humano_numero_afiliado: body.numero_afiliado || null,
+        humano_diagnostico: body.diagnostico_presunto || null,
+        // Campos que se modificaron (para métricas)
+        campos_corregidos: camposCorregidos,
+        // Para retrieval futuro
+        archivo_storage_path: pedido.archivo_storage_path ?? null,
+        corregido_por: user.username,
+      });
+      if (corrErr) {
+        // No bloqueamos la respuesta — el aprendizaje es secundario al guardado
+        console.error("[PATCH pedido] no se pudo guardar correccion:", corrErr.message);
+      }
+    } catch (err) {
+      console.error("[PATCH pedido] excepción guardando correccion:", err);
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     pedido_id: params.id,
     matching_ok: matchingOk,
+    campos_corregidos: camposCorregidos,
   });
 }
