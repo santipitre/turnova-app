@@ -95,7 +95,7 @@ export default async function PedidosPage({ searchParams }: Props) {
         </Button>
       </div>
 
-      {/* ============ FILTROS — Chips Lumen ============ */}
+      {/* ============ FILTROS — Chips Lumen (dark theme) ============ */}
       <div className="flex gap-2 flex-wrap">
         {chips.map((chip) => {
           const isActive = estadoFiltro === chip.key || (chip.key === "todos" && estadoFiltro === "todos");
@@ -105,8 +105,8 @@ export default async function PedidosPage({ searchParams }: Props) {
               href={chip.key === "todos" ? "/pedidos" : `/pedidos?estado=${chip.key}`}
               className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-lumen-sm text-sm font-medium transition-all duration-fast border ${
                 isActive
-                  ? "bg-stone-900 text-white border-stone-900 shadow-lumen-2"
-                  : "bg-stone-900/40 text-stone-700 border-stone-200 hover:border-stone-400"
+                  ? "bg-amber-400/10 text-amber-200 border-amber-400/40 shadow-[0_0_16px_rgba(251,191,36,0.15)]"
+                  : "bg-stone-900/60 text-stone-300 border-stone-700 hover:border-amber-400/30 hover:text-amber-200/80"
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${
@@ -117,7 +117,7 @@ export default async function PedidosPage({ searchParams }: Props) {
               }`} />
               <span>{chip.label}</span>
               <span className={`font-mono text-xs tabular-nums ${
-                isActive ? "text-stone-400" : "text-stone-400"
+                isActive ? "text-amber-300" : "text-stone-400"
               }`}>
                 {chip.count}
               </span>
@@ -126,30 +126,33 @@ export default async function PedidosPage({ searchParams }: Props) {
         })}
       </div>
 
-      {/* ============ TABLA DE PEDIDOS ============ */}
-      <Card className="rounded-lumen-lg border-stone-200 shadow-lumen-1 overflow-hidden">
+      {/* ============ TABLA DE PEDIDOS (dark theme) ============ */}
+      <Card className="rounded-lumen-lg border-stone-800 bg-stone-900/40 shadow-lumen-1 overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-stone-50/50">
-              <TableHead className="w-[100px]">Fecha</TableHead>
-              <TableHead className="w-[130px]">Canal</TableHead>
-              <TableHead>Paciente</TableHead>
-              <TableHead>Práctica detectada</TableHead>
-              <TableHead>Obra Social</TableHead>
-              <TableHead className="w-[160px]">Confianza</TableHead>
-              <TableHead className="w-[140px]">Estado</TableHead>
+            <TableRow className="bg-stone-900/80 border-stone-800 hover:bg-stone-900/80">
+              <TableHead className="w-[100px] text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Fecha</TableHead>
+              <TableHead className="w-[130px] text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Canal</TableHead>
+              <TableHead className="text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Paciente</TableHead>
+              <TableHead className="text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Práctica detectada</TableHead>
+              <TableHead className="text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Obra Social</TableHead>
+              <TableHead className="w-[160px] text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Confianza</TableHead>
+              <TableHead className="w-[140px] text-stone-300 font-semibold uppercase text-[11px] tracking-wider">Estado</TableHead>
               <TableHead className="text-right w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(pedidos ?? []).length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-stone-400 py-16">
+              <TableRow className="border-stone-800 hover:bg-transparent">
+                <TableCell colSpan={8} className="text-center py-16">
                   <div className="space-y-3">
-                    <Sparkles className="h-12 w-12 mx-auto text-stone-300" />
+                    <Sparkles
+                      className="h-12 w-12 mx-auto text-amber-400/60"
+                      style={{ filter: "drop-shadow(0 0 12px rgba(251, 191, 36, 0.35))" }}
+                    />
                     <div>
-                      <p className="font-medium text-stone-700">No hay pedidos con este filtro</p>
-                      <p className="text-xs mt-1">
+                      <p className="font-medium text-stone-200">No hay pedidos con este filtro</p>
+                      <p className="text-xs mt-1 text-stone-400">
                         Probá otro estado o cargá un pedido manual desde el botón superior.
                       </p>
                     </div>
@@ -162,11 +165,11 @@ export default async function PedidosPage({ searchParams }: Props) {
 
               const canalUI =
                 pedido.canal_origen === "botmaker" ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-200">
                     <MessageSquare className="h-3 w-3" /> BOTMAKER
                   </span>
                 ) : pedido.canal_origen === "presencial" ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-200">
                     <Hospital className="h-3 w-3" /> Presencial
                   </span>
                 ) : (
@@ -191,16 +194,16 @@ export default async function PedidosPage({ searchParams }: Props) {
               return (
                 <TableRow
                   key={pedido.id}
-                  className="group hover:bg-stone-50/60 transition-colors cursor-pointer"
+                  className="group hover:bg-amber-400/[0.04] border-stone-800/60 transition-colors cursor-pointer"
                 >
                   <TableCell className="font-mono text-xs text-stone-400">
                     {formatFecha(pedido.created_at, "dd/MM HH:mm")}
                   </TableCell>
                   <TableCell>{canalUI}</TableCell>
-                  <TableCell className="font-medium text-stone-900">
+                  <TableCell className="font-medium text-stone-100">
                     {paciente ? `${paciente.nombre} ${paciente.apellido}` : "—"}
                   </TableCell>
-                  <TableCell className="text-stone-700 text-sm">
+                  <TableCell className="text-stone-300 text-sm">
                     {pedido.practica_detectada ?? "—"}
                   </TableCell>
                   <TableCell>
