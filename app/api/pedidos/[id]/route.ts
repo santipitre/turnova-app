@@ -204,6 +204,32 @@ export async function PATCH(
     }
   }
 
+  // 8. APRENDIZAJE — auto-upsert del médico en el diccionario
+  // Si el operador puso nombre y/o matrícula, alimentamos automáticamente
+  // medicos_solicitantes para que la próxima vez la IA lo reconozca.
+  if (body.medico_solicitante || body.matricula_medico) {
+    try {
+      const { error: upsertErr } = await supabase.rpc("upsert_medico_solicitante", {
+        p_tenant_id: user.tenant_id,
+        p_nombre: body.medico_solicitante || "",
+        p_matricula: body.matricula_medico || null,
+        p_especialidad: (extraccionPrevia.especialidad_inferida as string | null) || null,
+        // Si la IA leyó algo distinto, lo guardamos como variante de cómo se firma
+        p_variante_nombre:
+          (extraccionPrevia.medico_solicitante as string | null) &&
+          (extraccionPrevia.medico_solicitante as string | null) !== body.medico_solicitante
+            ? (extraccionPrevia.medico_solicitante as string)
+            : null,
+        p_centro_emisor: null,
+      });
+      if (upsertErr) {
+        console.warn("[PATCH pedido] no se pudo upsert médico:", upsertErr.message);
+      }
+    } catch (err) {
+      console.warn("[PATCH pedido] excepción upsert médico:", err);
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     pedido_id: params.id,

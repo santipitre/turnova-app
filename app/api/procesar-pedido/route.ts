@@ -122,28 +122,57 @@ export async function POST(request: Request) {
   }
 
   // ---------------------------------------------------------------
-  // 4b. APRENDIZAJE — traer las últimas correcciones del operador
-  // para inyectarlas en el prompt como "lecciones aprendidas".
-  // No bloqueante: si falla, seguimos sin correcciones.
+  // 4b. APRENDIZAJE — traer correcciones previas + médicos conocidos + patrones OS
+  // No bloqueante: si falla, seguimos con el contexto que se haya podido cargar.
   // ---------------------------------------------------------------
   let correcciones: import("@/lib/api/claude-vision").CorreccionPrevia[] = [];
   try {
-    const { data: correccionesData, error: corrErr } = await supabase.rpc(
-      "get_correcciones_relevantes",
-      { p_tenant_id: profile.tenant_id, p_limit: 8 },
-    );
-    if (corrErr) {
-      console.warn("[procesar] no pude traer correcciones:", corrErr.message);
-    } else if (correccionesData) {
-      correcciones = correccionesData;
-      console.log(`[procesar] inyectando ${correcciones.length} correcciones previas como contexto IA`);
-    }
+    const { data, error } = await supabase.rpc("get_correcciones_relevantes", {
+      p_tenant_id: profile.tenant_id,
+      p_limit: 8,
+    });
+    if (error) console.warn("[procesar] correcciones:", error.message);
+    else if (data) correcciones = data;
   } catch (e) {
-    console.warn("[procesar] error trayendo correcciones (no bloqueante):", e);
+    console.warn("[procesar] error correcciones (no bloqueante):", e);
   }
 
+  let medicosConocidos: import("@/lib/api/claude-vision").MedicoConocido[] = [];
+  let patronesAfiliado: import("@/lib/api/claude-vision").PatronAfiliado[] = [];
+  try {
+    const { data, error } = await supabase.rpc("get_contexto_aprendizaje", {
+      p_tenant_id: profile.tenant_id,
+      p_top_medicos: 30,
+    });
+    if (error) {
+      console.warn("[procesar] contexto aprendizaje:", error.message);
+    } else if (data) {
+      for (const row of data as any[]) {
+        if (row.tipo === "medico") {
+          medicosConocidos.push({
+            nombre: row.nombre,
+            matricula: row.matricula,
+            especialidad: row.especialidad,
+          });
+        } else if (row.tipo === "patron_os") {
+          patronesAfiliado.push({
+            obra_social_nombre: row.obra_social_nombre,
+            formato_descripcion: row.formato_descripcion,
+            ejemplos: row.ejemplos,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[procesar] error contexto aprendizaje (no bloqueante):", e);
+  }
+
+  console.log(
+    `[procesar] contexto IA: ${correcciones.length} correcciones, ${medicosConocidos.length} médicos, ${patronesAfiliado.length} patrones OS`,
+  );
+
   // ---------------------------------------------------------------
-  // 5. Llamar Claude Vision con catálogo + correcciones previas
+  // 5. Llamar Claude Vision con TODO el contexto
   // ---------------------------------------------------------------
   const inicioIA = Date.now();
   let datos;
@@ -153,6 +182,8 @@ export async function POST(request: Request) {
       body.media_type,
       catalogo,
       correcciones,
+      medicosConocidos,
+      patronesAfiliado,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

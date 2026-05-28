@@ -67,6 +67,20 @@ export interface CorreccionPrevia {
   campos_corregidos?: string[];
 }
 
+/** Médico conocido del centro (del diccionario medicos_solicitantes). */
+export interface MedicoConocido {
+  nombre: string;
+  matricula?: string | null;
+  especialidad?: string | null;
+}
+
+/** Patrón de N° afiliado por obra social. */
+export interface PatronAfiliado {
+  obra_social_nombre: string;
+  formato_descripcion?: string | null;
+  ejemplos?: string[] | null;
+}
+
 /**
  * Construye la sección de "lecciones aprendidas" del prompt.
  * Convierte correcciones humanas previas en hints accionables.
@@ -128,9 +142,66 @@ ${ejemplos}
 `;
 }
 
+/**
+ * Construye la sección de "médicos conocidos del centro" — diccionario.
+ * Permite que Claude reconozca caligrafías típicas y corrija nombres mal leídos.
+ */
+function buildMedicosConocidosSection(medicos: MedicoConocido[]): string {
+  if (!medicos || medicos.length === 0) return "";
+
+  const lines = medicos
+    .slice(0, 30)
+    .map((m) => {
+      const matStr = m.matricula ? ` · Mat: ${m.matricula}` : "";
+      const espStr = m.especialidad ? ` · ${m.especialidad}` : "";
+      return `  • ${m.nombre}${matStr}${espStr}`;
+    })
+    .join("\n");
+
+  return `
+
+# 👨‍⚕️ MÉDICOS CONOCIDOS DE ESTE CENTRO (${medicos.length})
+
+Estos médicos firman pedidos en este centro frecuentemente. Si lo que leés en el sello/encabezado SE PARECE a alguno de estos, usá el nombre CANÓNICO listado acá (no la lectura aproximada):
+
+${lines}
+
+**Cómo aplicar:**
+- Si la matrícula leída coincide con alguna de la lista → usá nombre + especialidad del catálogo.
+- Si el nombre se parece pero está mal escrito ("Dr. SHVANO" ↔ "Dr. Silvano") → usá el del catálogo.
+- Si NO encontrás match razonable → reportá lo que leíste sin forzar.
+`;
+}
+
+/**
+ * Construye la sección de patrones de N° afiliado por OS.
+ * Ayuda a Claude a validar formato y rechazar lecturas incorrectas.
+ */
+function buildPatronesAfiliadoSection(patrones: PatronAfiliado[]): string {
+  if (!patrones || patrones.length === 0) return "";
+
+  const lines = patrones
+    .map((p) => {
+      const ejemplos = p.ejemplos && p.ejemplos.length > 0 ? ` (ej: ${p.ejemplos.slice(0, 2).join(", ")})` : "";
+      return `  • **${p.obra_social_nombre}**: ${p.formato_descripcion || "formato no documentado"}${ejemplos}`;
+    })
+    .join("\n");
+
+  return `
+
+# 🔢 FORMATOS DE Nº AFILIADO POR OBRA SOCIAL
+
+${lines}
+
+Si leíste un n° afiliado pero NO CUMPLE el formato de la OS detectada → es probable que esté mal leído. Bajá la confianza por campo o devolvé null.
+`;
+}
+
 function buildSystemPrompt(
   catalogo: CatalogoCentro | null,
   correcciones: CorreccionPrevia[] = [],
+  medicosConocidos: MedicoConocido[] = [],
+  patronesAfiliado: PatronAfiliado[] = [],
 ): string {
   // Construir las listas para el prompt
   const osLines = (catalogo?.obras_sociales || [])
@@ -172,6 +243,8 @@ ${practicasLines}
       : "";
 
   const leccionesSection = buildLeccionesAprendidas(correcciones);
+  const medicosSection = buildMedicosConocidosSection(medicosConocidos);
+  const patronesSection = buildPatronesAfiliadoSection(patronesAfiliado);
 
   return `Sos un asistente que LEE pedidos médicos argentinos. Tu trabajo es transcribir lo que VE en la imagen, no interpretar ni completar con conocimiento médico general.
 
@@ -245,6 +318,8 @@ Si no podés leer un campo con 70%+ de certeza → devolvé null y bajá la conf
 | fecha_pedido | Arriba a la derecha, formato DD/MM/AA |
 | urgencia_indicada | Buscá "URGENTE", "URGENCIA" |
 ${catalogoSection}
+${medicosSection}
+${patronesSection}
 ${leccionesSection}
 
 # REGLAS FIRMES (resumen)
@@ -298,6 +373,8 @@ export async function extraerDatosPedido(
   mediaType: string,
   catalogo: CatalogoCentro | null = null,
   correcciones: CorreccionPrevia[] = [],
+  medicosConocidos: MedicoConocido[] = [],
+  patronesAfiliado: PatronAfiliado[] = [],
 ): Promise<DatosExtraidos> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -321,7 +398,7 @@ export async function extraerDatosPedido(
   const body = {
     model: CLAUDE_MODEL,
     max_tokens: 2500,
-    system: buildSystemPrompt(catalogo, correcciones),
+    system: buildSystemPrompt(catalogo, correcciones, medicosConocidos, patronesAfiliado),
     messages: [
       {
         role: "user",
