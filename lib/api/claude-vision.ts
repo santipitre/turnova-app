@@ -380,7 +380,7 @@ Devolvé ÚNICAMENTE este JSON, sin markdown, sin texto antes/después:
   "razonamiento": string|null
 }
 
-**REGLA IMPORTANTE sobre el array `practicas_solicitadas`:**
+**REGLA IMPORTANTE sobre el array \`practicas_solicitadas\`:**
 - Si hay UNA práctica: array de 1 elemento. \`practica_solicitada\` = ese mismo nombre.
 - Si hay VARIAS prácticas: array con TODAS, una por elemento. \`practica_solicitada\` = la primera del array.
 - Cada práctica debe ser un nombre EXACTO del catálogo (sin variantes inventadas).
