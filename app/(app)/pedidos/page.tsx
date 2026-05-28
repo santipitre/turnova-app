@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { StatusDot } from "@/components/lumen/status-dot";
 import { ConfidenceBar } from "@/components/lumen/confidence-bar";
+import { RefreshPedidosButton } from "@/components/pedidos/refresh-button";
 import { formatFecha } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -96,9 +97,10 @@ export default async function PedidosPage({ searchParams }: Props) {
         </Button>
       </div>
 
-      {/* ============ FILTROS — Chips Lumen (dark theme) ============ */}
-      <div className="flex gap-2 flex-wrap">
-        {chips.map((chip) => {
+      {/* ============ FILTROS + REFRESH ============ */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {chips.map((chip) => {
           const isActive = estadoFiltro === chip.key || (chip.key === "todos" && estadoFiltro === "todos");
           return (
             <Link
@@ -125,6 +127,10 @@ export default async function PedidosPage({ searchParams }: Props) {
             </Link>
           );
         })}
+        </div>
+
+        {/* Botón refresh + auto-refresh cada 30s */}
+        <RefreshPedidosButton intervalMs={30000} />
       </div>
 
       {/* ============ TABLA DE PEDIDOS (dark theme) ============ */}
