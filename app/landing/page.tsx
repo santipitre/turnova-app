@@ -94,12 +94,14 @@ export default function LandingPage() {
               </Button>
             ) : (
               <>
-                <Link
-                  href="/login"
-                  className="text-sm text-stone-300 hover:text-white transition-colors hidden md:block"
+                <Button
+                  size="sm"
+                  asChild
+                  variant="outline"
+                  className="border-lumen-glow/40 text-lumen-glow hover:bg-lumen-glow/10 hover:text-lumen-glow hover:border-lumen-glow font-semibold"
                 >
-                  Entrar
-                </Link>
+                  <Link href="/login">Entrar</Link>
+                </Button>
                 <Button
                   size="sm"
                   asChild
@@ -163,8 +165,8 @@ export default function LandingPage() {
             de tu centro. Hecho en Argentina, para LATAM.
           </p>
 
-          {/* CTA solo uno, estilo Pyralis */}
-          <div className="flex justify-center mb-20 animate-fade-in-up">
+          {/* Dual CTA: primary "Probar" (contacto, leads) + secondary "Entrar" (login, usuarios) */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-20 animate-fade-in-up">
             <Button
               asChild
               size="lg"
@@ -172,6 +174,17 @@ export default function LandingPage() {
             >
               <Link href="#contacto">
                 Probar Turnova
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white hover:border-white/40 font-semibold text-base px-8 h-12 backdrop-blur-sm"
+            >
+              <Link href="/login">
+                Ya tengo cuenta — Entrar
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
