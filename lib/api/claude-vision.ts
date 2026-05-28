@@ -2,10 +2,13 @@
  * Cliente de Claude Vision API para extraer datos de pedidos médicos argentinos.
  * Server-side only - NUNCA exponer al cliente porque usa ANTHROPIC_API_KEY.
  *
- * v3 (2026-05-28): razonamiento paso a paso + extended thinking + confianza por campo.
- * - Forzamos a Claude a inferir especialidad del médico ANTES de elegir práctica.
- * - Habilitamos extended thinking (4000 tokens de razonamiento interno).
- * - Devolvemos confianza global + por campo para UI de revisión humana.
+ * v4 (2026-05-28): anti-hallucination + performance.
+ * - Sacamos la tabla prescriptiva especialidad→prácticas que inducía a Claude
+ *   a INVENTAR especialidades (caso real: leyó "Cirujano Maxilofacial" en un
+ *   sello que decía "Ortopedia y Traumatología").
+ * - Desactivamos extended thinking por default → de ~47s a ~5-8s por pedido.
+ * - Reforzamos la regla: LEER textualmente lo que aparece, NUNCA completar
+ *   con conocimiento médico general ni inferir desde otros campos.
  */
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
@@ -32,7 +35,6 @@ export interface DatosExtraidos {
   urgencia_indicada: boolean;
   fecha_pedido: string | null;
   confianza: number;
-  // v3:
   confianza_por_campo?: ConfianzaPorCampo;
   especialidad_inferida?: string | null;
   razonamiento?: string | null;
@@ -65,8 +67,6 @@ function buildSystemPrompt(catalogo: CatalogoCentro | null): string {
     .map(([s, list]) => `  ━ ${s}:\n${list.map((l) => `    • ${l}`).join("\n")}`)
     .join("\n");
 
-  const serviciosDisponibles = Object.keys(porServicio).join(", ") || "(catálogo vacío)";
-
   const catalogoSection =
     catalogo && (catalogo.obras_sociales.length > 0 || catalogo.practicas.length > 0)
       ? `
@@ -76,109 +76,101 @@ function buildSystemPrompt(catalogo: CatalogoCentro | null): string {
 ## OBRAS SOCIALES ACEPTADAS (${catalogo.obras_sociales.length})
 ${osLines}
 
-**REGLA CRÍTICA**: \`obra_social\` DEBE ser uno de los nombres exactos de arriba (sin las variantes). Si ves "OSDE 210" → devolvé "OSDE". Si lo que ves NO está en la lista → null.
+**REGLA**: \`obra_social\` DEBE ser uno de los nombres exactos de arriba. Si ves "OSDE 210" → "OSDE". Si lo que ves NO está en la lista → null.
 
 ## PRÁCTICAS / ESTUDIOS QUE OFRECE EL CENTRO (${catalogo.practicas.length})
-Servicios disponibles: ${serviciosDisponibles}
-
 ${practicasLines}
 
-**REGLA CRÍTICA**: \`practica_solicitada\` DEBE ser el nombre EXACTO de una práctica de arriba. Si el pedido menciona código nomenclador, devolvé también \`codigo_nomenclador\`.
+**REGLA**: \`practica_solicitada\` DEBE ser el nombre EXACTO de una práctica de arriba. Si el pedido tiene código nomenclador, devolvelo en \`codigo_nomenclador\`. Si NINGUNA del catálogo encaja con lo que leíste → null y baja la confianza.
 `
       : "";
 
-  return `Sos un asistente especializado en leer pedidos médicos argentinos. Tu output se usa para asignar turnos automáticamente, así que la precisión es crítica. Una práctica mal identificada = paciente con turno equivocado.
+  return `Sos un asistente que LEE pedidos médicos argentinos. Tu trabajo es transcribir lo que VE en la imagen, no interpretar ni completar con conocimiento médico general.
 
-# CÓMO PENSAR ESTE PEDIDO (CRÍTICO — SEGUÍ ESTE ORDEN)
+# REGLA #1 — NUNCA INVENTES (ANTI-HALLUCINATION)
 
-Antes de extraer datos, razoná en este orden dentro del thinking. Solo después armás el JSON.
+Esta es la regla más importante. Violarla causa errores médicos graves.
 
-**Paso 1 — Mirá el sello del médico (al pie del documento)**
-El sello suele tener:
-- Nombre del médico (ej. "Dr. Iervolino Nicolás")
-- **ESPECIALIDAD** (ej. "Cirugía Maxilofacial", "Bucomaxilofacial", "Radiología", "Cardiología")
-- **MATRÍCULA** (ej. "Mat: 3121", "M.P. 12345", "MN 67890") — casi siempre en el sello, NO en el manuscrito
+✅ CORRECTO:
+- Leés "Ortopedia y Traumatología" en el sello → especialidad_inferida = "Ortopedia y Traumatología"
+- No podés leer el sello porque está borroso → especialidad_inferida = null
+- Leés "Solicito RMN rodilla" en el manuscrito → práctica = lo que más se parezca en el catálogo
 
-Si la especialidad NO está clara, mirá la cabecera impresa (también suele decir "Cirugía Maxilofacial" etc.).
+❌ INCORRECTO (esto es hallucination, te penaliza):
+- "El médico parece traumatólogo entonces probablemente sea X" — NO. Solo si lo LEÍSTE.
+- "La práctica es de cara entonces el médico debe ser maxilofacial" — NO. Solo si lo LEÍSTE.
+- "Como dice 'Solicito TAC' debe ser de abdomen" — NO. Solo si lo LEÍSTE.
+- Completar campos no visibles "porque tienen sentido juntos".
 
-**Paso 2 — Inferí qué prácticas son razonables dado la especialidad**
+Si no podés leer un campo con 70%+ de certeza → devolvé null y bajá la confianza. Es mucho mejor un null honesto que un dato inventado.
 
-Tabla de mapeo especialidad → prácticas probables:
-| Especialidad médico | Prácticas razonables |
-|---|---|
-| Maxilofacial / Bucomaxilofacial / Odontología | TC/TAC de macizo facial, ATM, mandíbula, Rx panorámica, cefalometría, NO abdomen/pelvis/columna |
-| Traumatología | Rx/RMN de hueso, articulaciones, columna, NO abdomen |
-| Gastroenterología | Eco abdominal, TC abdomen-pelvis, endoscopía |
-| Urología | Eco renal/vesical, TC renal, urograma |
-| Ginecología | Eco ginecológica, mamografía, pap |
-| Neurología | RMN cerebro, TC cerebro, EEG |
-| Cardiología | ECG, ecocardiograma, holter |
-| Neumonología | Rx tórax, TC tórax, espirometría |
-| Traumatología deportiva | RMN rodilla, hombro, columna |
-| Pediatría | Eco infantil, Rx general |
+# CÓMO PROCESÁS EL PEDIDO
 
-**Si la especialidad sugiere una región anatómica → buscá prácticas de ESA región en el catálogo. NO uses prácticas de otra región aunque parezcan compatibles textualmente.**
+**Paso 1 — Identificá las zonas del documento:**
+- ENCABEZADO impreso (arriba): logo, nombre del médico/centro, especialidad, matrícula
+- CUERPO manuscrito (medio): paciente, OS, n° afiliado, R/p o "Solicito" + práctica, diagnóstico, fecha
+- SELLO (abajo): refuerza nombre + especialidad + matrícula del médico
 
-Ejemplo real: si el sello dice "Cirugía Maxilofacial" y el manuscrito dice "TAC con reconstrucción 3D" → la práctica correcta es de macizo facial / ATM, NUNCA "TC ABDOMEN Y PELVIS" (eso es de gastro/uro/etc).
+**Paso 2 — Leé TEXTUALMENTE cada zona.** Para cada campo del JSON, hacé:
+1. ¿Lo veo escrito en la imagen? Si sí, transcribilo tal cual.
+2. ¿Lo veo borroso o ambiguo? null + baja confianza por campo.
+3. NO uses otros campos para "deducir" éste.
 
-**Paso 3 — Decodificá el manuscrito**
+**Paso 3 — Match contra el catálogo (si aplica):**
+- Para \`obra_social\` y \`practica_solicitada\`, buscá el match más cercano EN EL CATÁLOGO listado abajo. Si tu interpretación no está en el catálogo, devolvé null (NUNCA inventes una práctica/OS que no esté listada).
 
-Buscá estos campos. El R/p (Receta) o "Solicito" suele ser una línea larga:
-- "Solicito TC ATM con reconstrucción 3D" → práctica = TC macizo facial / ATM
-- "Solicito RMN columna lumbosacra" → práctica = RMN lumbosacra
-- "Solicito Eco abdominal completa" → práctica = Ecografía abdominal
+**Paso 4 — Verificación de coherencia (SUAVE, opcional):**
+- Si la especialidad que LEÍSTE y la práctica que LEÍSTE NO son coherentes (ej: maxilofacial pero pide rodilla), **bajá la confianza por campo** pero NO modifiques los datos. Anotalo en \`razonamiento\`.
+- Si SON coherentes → confirma confianza alta.
+- NUNCA descartes una práctica clara del manuscrito porque "no le pega" a una especialidad que vos inferiste.
 
-Expandí abreviaturas:
+# EXPANSIÓN DE ABREVIATURAS ARGENTINAS
+
 | Abreviatura | Expansión |
 |---|---|
 | TAC / TC | Tomografía Computada |
 | RMN / RM | Resonancia Magnética |
 | Eco | Ecografía |
 | Rx | Radiografía |
-| s/c / c/c | sin/con contraste |
-| ATM | Articulación Temporomandibular |
+| s/c / c/c | sin contraste / con contraste |
 | AP / LAT | Anteroposterior / Lateral |
-| col / colum | Columna |
-| lumbosacra | Lumbosacra |
-| 3D | Reconstrucción tridimensional |
-
-**Paso 4 — Matchéa contra el catálogo**
-
-Tomá la práctica que entendiste y buscá el match más cercano EN EL CATÁLOGO de este centro:
-- Si encontrás un match exacto o casi exacto (90%+ certeza) → usalo
-- Si tu interpretación NO está en el catálogo → \`practica_solicitada: null\` y bajá la confianza
-- NUNCA inventes una práctica que no esté en el catálogo
-
-**Paso 5 — Auto-evaluate confianza POR CAMPO**
-
-Para cada campo, dame un número 0.00–1.00 según qué tan seguro estás:
-- 0.95+ = perfectamente legible, match exacto al catálogo
-- 0.80–0.94 = legible con buena certeza
-- 0.60–0.79 = legible parcial o catálogo no exacto
-- < 0.60 = poco legible o ambiguo → un humano debería revisar
+| Bilat | Bilateral |
+| Sup / Inf | Superior / Inferior |
+| Izq / Der | Izquierdo / Derecho |
+| Mat. / M.P. / M.N. | Matrícula (Provincial / Nacional) |
+| Dr. / Dra. | Doctor / Doctora |
+| R/p / Rp | Receta (lo que viene después es la práctica solicitada) |
+| Dx | Diagnóstico |
 
 # DÓNDE BUSCAR CADA DATO
 
-- **ENCABEZADO** (impreso, arriba): centro emisor, especialidad del médico
-- **CAMPO PACIENTE**: nombre del paciente (a veces tachado por privacidad)
-- **CAMPO O.SOCIAL / OBRA SOCIAL**: cobertura del paciente
-- **CAMPO Nº AFILIADO**: número de afiliación
-- **R/p (Receta) o "Solicito"**: la práctica/estudio pedido — LO MÁS IMPORTANTE
-- **DIAGNÓSTICO / Dx**: motivo clínico
-- **FECHA**: arriba a la derecha
-- **SELLO DEL MÉDICO** (al pie): nombre + especialidad + matrícula
+| Campo JSON | Dónde buscarlo en la imagen |
+|---|---|
+| medico_solicitante | Sello (al pie) y/o encabezado impreso |
+| matricula_medico | Sello — busca "Mat:", "M.P.", "M.N." seguido de números |
+| especialidad_inferida | Sello y/o encabezado — leé el texto LITERAL, no infieras |
+| paciente | Línea manuscrita después de "Paciente:" |
+| obra_social | Línea con "O.Social:" / "Obra Social:" / "Cobertura:" |
+| numero_afiliado | Línea con "N° Afiliado", suele tener formato "XXX-XX-XXXX-XX-X" |
+| practica_solicitada | Línea después de "R/p" o "Solicito" — lo más importante |
+| diagnostico_presunto | Línea con "Dx:", "Diagnóstico:", "Motivo:" |
+| fecha_pedido | Arriba a la derecha, formato DD/MM/AA |
+| urgencia_indicada | Buscá "URGENTE", "URGENCIA" |
 ${catalogoSection}
 
-# REGLAS FIRMES
-1. Si un campo NO es legible o NO está → null. NUNCA inventes.
-2. \`obra_social\` y \`practica_solicitada\` DEBEN ser nombres exactos del catálogo (si hay).
-3. urgencia_indicada = true si hay "URGENTE", "URGENCIA" o equivalente.
-4. fecha_pedido en formato ISO YYYY-MM-DD (13/05/26 → "2026-05-13").
-5. La matrícula casi siempre está en el SELLO, no en el manuscrito.
+# REGLAS FIRMES (resumen)
+
+1. **NUNCA INVENTES**. Si no lo leíste claramente → null.
+2. \`obra_social\` y \`practica_solicitada\` deben ser nombres EXACTOS del catálogo (si hay catálogo).
+3. \`especialidad_inferida\` es el texto LITERAL del sello/encabezado, no una inferencia.
+4. urgencia_indicada = true SOLO si ves "URGENTE" explícito.
+5. fecha_pedido formato ISO YYYY-MM-DD (13/05/26 → "2026-05-13").
+6. confianza_por_campo: 0.95+ legible perfecto, 0.80–0.94 legible bueno, 0.60–0.79 ambiguo, <0.60 ilegible.
+7. confianza global = promedio ponderado (práctica y OS pesan más).
 
 # FORMATO DE SALIDA OBLIGATORIO
 
-Después de razonar en el thinking, devolvé ÚNICAMENTE este JSON (sin markdown, sin texto antes/después):
+Devolvé ÚNICAMENTE este JSON, sin markdown, sin texto antes/después:
 
 {
   "practica_solicitada": string|null,
@@ -204,7 +196,12 @@ Después de razonar en el thinking, devolvé ÚNICAMENTE este JSON (sin markdown
   "razonamiento": string|null
 }
 
-\`razonamiento\` es UN RENGLÓN corto (max 200 chars) explicando la lógica clave. Ejemplo: "Sello dice Cirugía Maxilofacial → 'TAC con reconstrucción 3D' = TC macizo facial / ATM en el catálogo."`;
+\`razonamiento\` es UN renglón corto (max 200 chars). Mencioná:
+- Qué campos quedaron en null y por qué (ilegible / no está en catálogo / etc.)
+- Si hay incoherencia entre especialidad y práctica (sin modificar datos).
+
+Ejemplo bueno: "Sello: 'Ortopedia y Traumatología'. R/p claramente 'RMN rodilla derecha'. Match catálogo exacto. OS ilegible (borrosa)."
+Ejemplo MALO: "Probablemente sea ortopedista porque pidió rodilla" (esto es inferencia, no lectura).`;
 }
 
 export async function extraerDatosPedido(
@@ -227,15 +224,13 @@ export async function extraerDatosPedido(
     ? { type: "document", source: { type: "base64", media_type: mediaType, data: imagenBase64 } }
     : { type: "image", source: { type: "base64", media_type: mediaType, data: imagenBase64 } };
 
+  // v4: sin extended thinking por default. Mucho más rápido (~5-8s vs ~47s)
+  // y el prompt re-escrito ya es lo bastante explícito sin necesidad de
+  // razonamiento interno extenso. Para casos difíciles, el operador corrige
+  // manualmente con la pantalla /pedidos/[id]/editar.
   const body = {
     model: CLAUDE_MODEL,
-    // max_tokens debe contener thinking budget + respuesta final.
-    // 4000 thinking + 2500 para JSON = 6500. Dejamos buffer.
-    max_tokens: 8000,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 4000,
-    },
+    max_tokens: 2500,
     system: buildSystemPrompt(catalogo),
     messages: [
       {
@@ -244,7 +239,7 @@ export async function extraerDatosPedido(
           contentBlock,
           {
             type: "text",
-            text: "Razoná paso a paso siguiendo las 5 etapas del system prompt (sello → especialidad → prácticas razonables → match catálogo → confianza por campo). Después devolvé el JSON.",
+            text: "Leé el pedido médico siguiendo las reglas. Recordá: NUNCA inventes datos que no podés leer claramente en la imagen. Devolvé sólo el JSON.",
           },
         ],
       },
@@ -268,12 +263,9 @@ export async function extraerDatosPedido(
 
   const data = await response.json();
 
-  // Con extended thinking, content puede tener varios bloques:
-  // - blocks de tipo "thinking" (el razonamiento interno)
-  // - bloques de tipo "text" (la respuesta final con el JSON)
-  // Buscamos el último bloque "text" (el JSON).
+  // Sin thinking, content tiene un solo bloque de tipo "text"
   const blocks = (data.content as Array<{ type: string; text?: string }>) || [];
-  const textBlock = [...blocks].reverse().find((b) => b.type === "text");
+  const textBlock = blocks.find((b) => b.type === "text");
   const textResponse = textBlock?.text;
   if (!textResponse) throw new Error("Respuesta de Claude sin contenido válido");
 
@@ -286,11 +278,11 @@ export async function extraerDatosPedido(
     parsed = JSON.parse(match[0]);
   }
 
-  // Normalizar confianza global
+  // Normalizar confianza global (clamp 0-1, fallback 0.5)
   if (typeof parsed.confianza !== "number") parsed.confianza = 0.5;
   parsed.confianza = Math.max(0, Math.min(1, parsed.confianza));
 
-  // Normalizar confianza por campo (clamp 0-1, fallback al global)
+  // Normalizar confianza por campo
   if (parsed.confianza_por_campo && typeof parsed.confianza_por_campo === "object") {
     for (const k of Object.keys(parsed.confianza_por_campo) as Array<keyof ConfianzaPorCampo>) {
       const v = parsed.confianza_por_campo[k];
