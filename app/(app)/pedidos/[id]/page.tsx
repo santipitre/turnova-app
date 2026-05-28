@@ -12,6 +12,8 @@ import {
   IdCard,
   Calendar,
   Building2,
+  Edit3,
+  Lightbulb,
 } from "lucide-react";
 
 import { createServiceClient } from "@/lib/supabase/server";
@@ -81,6 +83,17 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
     (datos.requiere_revision_manual as boolean | undefined) ?? false;
   const archivoTipo = pedido.archivo_storage_path?.endsWith(".pdf") ? "pdf" : "imagen";
 
+  // v3 (2026-05-28): confianza por campo + razonamiento + especialidad inferida
+  const confianzaPorCampo = (datos.confianza_por_campo as Record<string, number> | null) || null;
+  const especialidadInferida = (datos.especialidad_inferida as string | null) || null;
+  const razonamientoIA = (datos.razonamiento as string | null) || null;
+
+  // Trigger del banner de revisión: confianza < 80% global O cualquier campo < 60%
+  const camposDebiles = confianzaPorCampo
+    ? Object.entries(confianzaPorCampo).filter(([, v]) => typeof v === "number" && v < 0.6)
+    : [];
+  const requiereRevisionUrgente = conf < 0.8 || camposDebiles.length > 0;
+
   const confStatus =
     conf >= 0.85
       ? { variant: "pulse" as const, label: "Alta confianza" }
@@ -98,6 +111,77 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
         <ArrowLeft className="h-4 w-4" />
         Volver a pedidos
       </Link>
+
+      {/* ============ BANNER de revisión urgente (solo si confianza < 80% o campos débiles) ============ */}
+      {requiereRevisionUrgente && (
+        <div
+          className="rounded-lg p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 146, 60, 0.06))",
+            border: "1px solid rgba(251, 191, 36, 0.4)",
+            boxShadow: "0 0 24px rgba(251, 191, 36, 0.1), inset 0 0 12px rgba(251, 191, 36, 0.04)",
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle
+              className="h-5 w-5 text-amber-300 flex-shrink-0 mt-0.5"
+              style={{ filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.6))" }}
+            />
+            <div>
+              <div className="text-stone-100 font-semibold">
+                Este pedido necesita revisión humana
+              </div>
+              <p className="text-sm text-stone-300 mt-1">
+                {conf < 0.6
+                  ? `La IA tuvo confianza baja (${(conf * 100).toFixed(0)}%) en la extracción. `
+                  : conf < 0.8
+                    ? `Confianza media (${(conf * 100).toFixed(0)}%). `
+                    : ""}
+                {camposDebiles.length > 0 && (
+                  <span>
+                    Campos débiles:{" "}
+                    <span className="text-amber-200 font-medium">
+                      {camposDebiles.map(([k]) => k.replace(/_/g, " ")).join(", ")}
+                    </span>
+                    .{" "}
+                  </span>
+                )}
+                Revisá los datos antes de asignar el turno.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            variant="glow"
+            className="flex-shrink-0 shadow-lumen-glow"
+          >
+            <Link href={`/pedidos/${pedido.id}/editar`}>
+              <Edit3 className="h-4 w-4" />
+              Editar manualmente
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Razonamiento de la IA (si está disponible) */}
+      {(razonamientoIA || especialidadInferida) && (
+        <div className="rounded-lg border border-stone-800 bg-stone-900/40 px-4 py-3 flex items-start gap-3">
+          <Lightbulb className="h-4 w-4 text-amber-300/80 flex-shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <span className="uppercase tracking-widest text-stone-400 font-semibold mr-2">
+              Razonamiento IA
+            </span>
+            {especialidadInferida && (
+              <span className="text-stone-300">
+                Especialidad detectada:{" "}
+                <span className="text-amber-200 font-medium">{especialidadInferida}</span>.{" "}
+              </span>
+            )}
+            {razonamientoIA && <span className="text-stone-300">{razonamientoIA}</span>}
+          </div>
+        </div>
+      )}
 
       {/* ============ HEADER del pedido ============ */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -236,12 +320,14 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                 label="Práctica solicitada"
                 value={pedido.practica_detectada}
                 emphasized
+                confianza={confianzaPorCampo?.practica_solicitada}
               />
               <DataField
                 icon={Shield}
                 label="Obra social"
                 value={pedido.obra_social_detectada}
                 emphasized
+                confianza={confianzaPorCampo?.obra_social}
               />
 
               <div className="border-t border-stone-800" />
@@ -250,23 +336,27 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                 icon={User}
                 label="Médico solicitante"
                 value={datos.medico_solicitante as string | null}
+                confianza={confianzaPorCampo?.medico_solicitante}
               />
               <DataField
                 icon={IdCard}
                 label="Matrícula"
                 value={datos.matricula_medico as string | null}
                 mono
+                confianza={confianzaPorCampo?.matricula_medico}
               />
               <DataField
                 icon={FileText}
                 label="Diagnóstico presunto"
                 value={datos.diagnostico_presunto as string | null}
+                confianza={confianzaPorCampo?.diagnostico_presunto}
               />
               <DataField
                 icon={IdCard}
                 label="N° afiliado"
                 value={datos.numero_afiliado as string | null}
                 mono
+                confianza={confianzaPorCampo?.numero_afiliado}
               />
               {datos.fecha_pedido && (
                 <DataField
@@ -274,6 +364,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                   label="Fecha del pedido"
                   value={datos.fecha_pedido as string}
                   mono
+                  confianza={confianzaPorCampo?.fecha_pedido}
                 />
               )}
 
@@ -375,20 +466,52 @@ function DataField({
   value,
   emphasized = false,
   mono = false,
+  confianza,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | null | undefined;
   emphasized?: boolean;
   mono?: boolean;
+  confianza?: number;
 }) {
+  // Resolver indicador visual de confianza (solo si hay valor extraído)
+  const confTier =
+    value && typeof confianza === "number"
+      ? confianza >= 0.85
+        ? { color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30", label: "Alta" }
+        : confianza >= 0.6
+          ? { color: "text-amber-300", bg: "bg-amber-400/10", border: "border-amber-400/30", label: "Media" }
+          : { color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/40", label: "Baja" }
+      : null;
+
+  const isWeak = confTier?.label === "Baja";
+
   return (
-    <div className="flex items-start gap-3 px-4 py-3 hover:bg-stone-900/40 transition-colors">
-      <div className="flex-shrink-0 h-8 w-8 rounded bg-stone-800 flex items-center justify-center mt-0.5">
-        <Icon className="h-4 w-4 text-stone-300" />
+    <div
+      className={`flex items-start gap-3 px-4 py-3 transition-colors ${
+        isWeak ? "bg-red-400/[0.04] hover:bg-red-400/[0.08]" : "hover:bg-stone-900/40"
+      }`}
+    >
+      <div
+        className={`flex-shrink-0 h-8 w-8 rounded flex items-center justify-center mt-0.5 ${
+          isWeak ? "bg-red-400/15" : "bg-stone-800"
+        }`}
+      >
+        <Icon className={`h-4 w-4 ${isWeak ? "text-red-300" : "text-stone-300"}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] uppercase tracking-widest text-stone-400">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-widest text-stone-400">{label}</span>
+          {confTier && (
+            <span
+              className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border ${confTier.bg} ${confTier.color} ${confTier.border}`}
+              title={`Confianza IA: ${((confianza ?? 0) * 100).toFixed(0)}%`}
+            >
+              {(confianza! * 100).toFixed(0)}%
+            </span>
+          )}
+        </div>
         <div
           className={
             value
