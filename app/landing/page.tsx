@@ -1,9 +1,9 @@
 /**
  * Landing pública de Turnova (powered by Pyralis Lumen).
- * URL: /landing
+ * URLs servidas: / (root) y /landing (alias por compat).
  *
- * Pública (no requiere auth). El middleware ya está configurado
- * para permitir esta ruta (los archivos en /landing son públicos).
+ * Pública (no requiere auth). Si detecta sesión activa, muestra
+ * un banner arriba del nav: "Hola [nombre] → Ir a mi panel".
  */
 import Link from "next/link";
 import {
@@ -17,6 +17,7 @@ import {
   Stethoscope,
   TrendingUp,
   Lock,
+  LayoutDashboard,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { GlassCard } from "@/components/lumen/glass-card";
 import { AnimatedCounter } from "@/components/lumen/animated-counter";
 import { FireflyField } from "@/components/lumen/firefly-field";
 import { TurnovaIcon } from "@/components/brand/turnova-icon";
+import { getServerSession } from "@/lib/auth/server-session";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +37,36 @@ export const metadata = {
 };
 
 export default function LandingPage() {
+  // Detectar sesión activa para mostrar banner "Ir a mi panel"
+  const session = getServerSession();
+  const userName = session?.user?.nombre ?? null;
+
   return (
     <div className="bg-stone-950 text-white overflow-x-hidden">
+      {/* ============ BANNER LOGUEADO (solo si hay sesión) ============ */}
+      {userName && (
+        <div className="fixed top-0 inset-x-0 z-[60] bg-gradient-to-r from-lumen-glow/20 via-lumen-aurora/20 to-lumen-pulse/20 backdrop-blur-md border-b border-lumen-glow/30">
+          <div className="max-w-7xl mx-auto px-6 h-10 flex items-center justify-between text-sm">
+            <span className="text-stone-100">
+              <span className="text-lumen-glow font-semibold">Hola, {userName}</span>
+              <span className="text-stone-400 ml-2 hidden sm:inline">— ya estás logueado en Turnova</span>
+            </span>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-lumen-glow text-stone-950 font-semibold hover:bg-lumen-glowHover transition-colors"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Ir a mi panel
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ============ NAV (estilo Pyralis ecosistema) ============ */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-stone-950/80 backdrop-blur-md border-b border-white/[0.06]">
+      <nav className={`fixed inset-x-0 z-50 bg-stone-950/80 backdrop-blur-md border-b border-white/[0.06] ${userName ? "top-10" : "top-0"}`}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/landing" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <TurnovaIcon size={32} />
             <span className="text-base font-bold tracking-tight text-white">Turnova</span>
           </Link>
@@ -58,13 +84,31 @@ export default function LandingPage() {
             <Link href="#contacto" className="text-sm text-stone-300 hover:text-white transition-colors hidden md:block">
               FAQ
             </Link>
-            <Button
-              size="sm"
-              asChild
-              className="bg-lumen-glow text-stone-950 hover:bg-lumen-glowHover font-semibold shadow-lumen-glow"
-            >
-              <Link href="#contacto">Hablemos</Link>
-            </Button>
+            {userName ? (
+              <Button
+                size="sm"
+                asChild
+                className="bg-lumen-glow text-stone-950 hover:bg-lumen-glowHover font-semibold shadow-lumen-glow"
+              >
+                <Link href="/dashboard">Mi panel</Link>
+              </Button>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-sm text-stone-300 hover:text-white transition-colors hidden md:block"
+                >
+                  Entrar
+                </Link>
+                <Button
+                  size="sm"
+                  asChild
+                  className="bg-lumen-glow text-stone-950 hover:bg-lumen-glowHover font-semibold shadow-lumen-glow"
+                >
+                  <Link href="#contacto">Hablemos</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -344,7 +388,7 @@ export default function LandingPage() {
           </div>
 
           <div className="flex gap-6 text-sm text-stone-400">
-            <Link href="/landing" className="hover:text-white transition-colors">Turnova</Link>
+            <Link href="/" className="hover:text-white transition-colors">Turnova</Link>
             <a href="mailto:hola@pyralis.ar" className="hover:text-white transition-colors">Contacto</a>
             <Link href="#" className="hover:text-white transition-colors">Privacidad</Link>
             <Link href="#" className="hover:text-white transition-colors">Términos</Link>
