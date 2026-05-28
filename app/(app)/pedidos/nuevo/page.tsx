@@ -53,6 +53,44 @@ export default function NuevoPedidoPage() {
     };
   }, [preview]);
 
+  const setSelectedFile = useCallback((f: File | null) => {
+    if (!f) {
+      setFile(null);
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    console.log("[upload] archivo recibido:", f.name, f.type, f.size);
+    if (!isAllowed(f)) {
+      toast.error("Tipo de archivo no soportado", {
+        description: `Archivo: ${f.name} (${f.type || "tipo desconocido"}). Solo JPG, PNG, WEBP, GIF, HEIC o PDF.`,
+      });
+      return;
+    }
+    if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+      toast.error("Archivo muy grande", {
+        description: `${(f.size / 1024 / 1024).toFixed(1)} MB · Máximo ${MAX_SIZE_MB} MB.`,
+      });
+      return;
+    }
+    setFile(f);
+    // Mini preview solo para imágenes
+    if (f.type.startsWith("image/")) {
+      const url = URL.createObjectURL(f);
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } else {
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+  }, []);
+
   // ----- Paste from clipboard (Ctrl+V) -----
   // Captura imágenes desde el clipboard (captura de pantalla, Snipping Tool,
   // imagen copiada de WhatsApp Web, etc.). Si el usuario está tipeando en
@@ -95,46 +133,7 @@ export default function NuevoPedidoPage() {
 
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
-    // setSelectedFile es estable (useCallback con [] deps)
   }, [setSelectedFile]);
-
-  const setSelectedFile = useCallback((f: File | null) => {
-    if (!f) {
-      setFile(null);
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      return;
-    }
-    console.log("[upload] archivo recibido:", f.name, f.type, f.size);
-    if (!isAllowed(f)) {
-      toast.error("Tipo de archivo no soportado", {
-        description: `Archivo: ${f.name} (${f.type || "tipo desconocido"}). Solo JPG, PNG, WEBP, GIF, HEIC o PDF.`,
-      });
-      return;
-    }
-    if (f.size > MAX_SIZE_MB * 1024 * 1024) {
-      toast.error("Archivo muy grande", {
-        description: `${(f.size / 1024 / 1024).toFixed(1)} MB · Máximo ${MAX_SIZE_MB} MB.`,
-      });
-      return;
-    }
-    setFile(f);
-    // Mini preview solo para imágenes
-    if (f.type.startsWith("image/")) {
-      const url = URL.createObjectURL(f);
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-    } else {
-      setPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-    }
-  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
