@@ -12,7 +12,6 @@ import {
   IdCard,
   Calendar,
   Building2,
-  Edit3,
   Lightbulb,
 } from "lucide-react";
 
@@ -111,58 +110,6 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
         <ArrowLeft className="h-4 w-4" />
         Volver a pedidos
       </Link>
-
-      {/* ============ BANNER de revisión urgente (solo si confianza < 80% o campos débiles) ============ */}
-      {requiereRevisionUrgente && (
-        <div
-          className="rounded-lg p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 146, 60, 0.06))",
-            border: "1px solid rgba(251, 191, 36, 0.4)",
-            boxShadow: "0 0 24px rgba(251, 191, 36, 0.1), inset 0 0 12px rgba(251, 191, 36, 0.04)",
-          }}
-        >
-          <div className="flex items-start gap-3">
-            <AlertTriangle
-              className="h-5 w-5 text-amber-300 flex-shrink-0 mt-0.5"
-              style={{ filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.6))" }}
-            />
-            <div>
-              <div className="text-stone-100 font-semibold">
-                Este pedido necesita revisión humana
-              </div>
-              <p className="text-sm text-stone-300 mt-1">
-                {conf < 0.6
-                  ? `La IA tuvo confianza baja (${(conf * 100).toFixed(0)}%) en la extracción. `
-                  : conf < 0.8
-                    ? `Confianza media (${(conf * 100).toFixed(0)}%). `
-                    : ""}
-                {camposDebiles.length > 0 && (
-                  <span>
-                    Campos débiles:{" "}
-                    <span className="text-amber-200 font-medium">
-                      {camposDebiles.map(([k]) => k.replace(/_/g, " ")).join(", ")}
-                    </span>
-                    .{" "}
-                  </span>
-                )}
-                Revisá los datos antes de asignar el turno.
-              </p>
-            </div>
-          </div>
-          <Button
-            asChild
-            variant="glow"
-            className="flex-shrink-0 shadow-lumen-glow"
-          >
-            <Link href={`/pedidos/${pedido.id}/editar`}>
-              <Edit3 className="h-4 w-4" />
-              Editar manualmente
-            </Link>
-          </Button>
-        </div>
-      )}
 
       {/* Razonamiento de la IA (si está disponible) */}
       {(razonamientoIA || especialidadInferida) && (
@@ -390,6 +337,8 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
               matchingOk={
                 !!(datos.obra_social_id_matched && datos.practica_id_matched)
               }
+              camposDebiles={camposDebiles.map(([k]) => k)}
+              confianzaGlobal={conf}
             />
           )}
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Sparkles, X, Check, AlertTriangle, Clock } from "lucide-react";
+import { Loader2, Sparkles, X, Check, AlertTriangle, Clock, Edit3 } from "lucide-react";
 import { toast } from "sonner";
 
 import { asignarTurno, confirmarTurno, cancelarTurno } from "@/lib/api/edge-functions";
@@ -15,9 +16,28 @@ import type { AsignarTurnoResponse } from "@/lib/types/database";
 interface Props {
   pedidoId: string;
   matchingOk: boolean;
+  /** Campos con confianza < 60% que el revisor debería mirar primero. */
+  camposDebiles?: string[];
+  /** Confianza global (0-1) — para texto descriptivo. */
+  confianzaGlobal?: number;
 }
 
-export function PedidoDetailActions({ pedidoId, matchingOk }: Props) {
+const CAMPO_LABEL: Record<string, string> = {
+  practica_solicitada: "práctica solicitada",
+  obra_social: "obra social",
+  matricula_medico: "matrícula",
+  medico_solicitante: "médico",
+  numero_afiliado: "N° afiliado",
+  diagnostico_presunto: "diagnóstico",
+  fecha_pedido: "fecha del pedido",
+};
+
+export function PedidoDetailActions({
+  pedidoId,
+  matchingOk,
+  camposDebiles = [],
+  confianzaGlobal,
+}: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [propuesta, setPropuesta] = useState<AsignarTurnoResponse | null>(null);
@@ -90,23 +110,77 @@ export function PedidoDetailActions({ pedidoId, matchingOk }: Props) {
     }
   }
 
-  // ============ Estado: Matching falló — necesita revisión manual ============
+  // ============ Estado: Matching falló o campos débiles — necesita revisión manual ============
   if (!matchingOk) {
+    const labelsDebiles = camposDebiles.map((c) => CAMPO_LABEL[c] ?? c.replace(/_/g, " "));
+    const confPct = typeof confianzaGlobal === "number" ? Math.round(confianzaGlobal * 100) : null;
+
     return (
-      <Card className="rounded-lumen-lg border-lumen-ember/30 bg-gradient-to-br from-lumen-ember/5 to-transparent shadow-lumen-1">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lumen-ember text-lumen-display-sm">
-            <AlertTriangle className="h-4 w-4" />
-            Necesita revisión humana
+      <Card
+        className="relative overflow-hidden rounded-lg"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(251, 146, 60, 0.06))",
+          border: "1px solid rgba(251, 191, 36, 0.5)",
+          boxShadow:
+            "0 0 32px rgba(251, 191, 36, 0.18), inset 0 0 16px rgba(251, 191, 36, 0.06)",
+        }}
+      >
+        {/* Pulse glow decorativo */}
+        <div
+          className="absolute -top-12 -right-12 h-40 w-40 rounded-full blur-3xl opacity-30 pointer-events-none animate-pulse"
+          style={{ background: "radial-gradient(circle, #fbbf24, transparent 70%)" }}
+          aria-hidden
+        />
+
+        <CardHeader className="relative">
+          <CardTitle className="flex items-center gap-2 text-amber-200 text-base">
+            <AlertTriangle
+              className="h-5 w-5 text-amber-300"
+              style={{ filter: "drop-shadow(0 0 8px rgba(251, 191, 36, 0.7))" }}
+            />
+            <span style={{ textShadow: "0 0 8px rgba(251, 191, 36, 0.35)" }}>
+              Necesita revisión humana
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-stone-700">
-            La IA no pudo encontrar la obra social o práctica en tu base de datos. Revisá
-            los datos extraídos antes de asignar.
+
+        <CardContent className="relative space-y-4">
+          <p className="text-sm text-stone-200 leading-relaxed">
+            {confPct !== null && confPct < 60
+              ? `La IA tuvo confianza baja (${confPct}%) en la extracción.`
+              : confPct !== null && confPct < 80
+                ? `La IA tuvo confianza media (${confPct}%).`
+                : "La IA no pudo matchear la obra social o práctica contra tu catálogo."}{" "}
+            Revisá los datos antes de asignar el turno.
           </p>
-          <Button variant="secondary" size="sm">
-            Editar datos manualmente
+
+          {labelsDebiles.length > 0 && (
+            <div className="rounded-md border border-amber-400/30 bg-stone-900/50 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-amber-300/80 font-semibold mb-1.5">
+                Campos a revisar
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {labelsDebiles.map((label) => (
+                  <li
+                    key={label}
+                    className="text-xs px-2 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-200 font-medium"
+                  >
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <Button
+            asChild
+            className="w-full bg-amber-400 text-stone-950 hover:bg-amber-300 font-semibold shadow-lumen-glow"
+          >
+            <Link href={`/pedidos/${pedidoId}/editar`}>
+              <Edit3 className="h-4 w-4" />
+              Editar datos manualmente
+            </Link>
           </Button>
         </CardContent>
       </Card>
