@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Upload, Loader2, FileText, X } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, FileText, X, Clipboard } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -52,6 +52,51 @@ export default function NuevoPedidoPage() {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  // ----- Paste from clipboard (Ctrl+V) -----
+  // Captura imágenes desde el clipboard (captura de pantalla, Snipping Tool,
+  // imagen copiada de WhatsApp Web, etc.). Si el usuario está tipeando en
+  // un input/textarea, NO interceptamos texto: sólo procesamos si hay item
+  // de tipo "file" en el clipboard.
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items || items.length === 0) return;
+
+      // Buscar el primer item que sea un archivo
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const blob = item.getAsFile();
+          if (!blob) continue;
+
+          // El clipboard image suele venir como "image.png" sin nombre útil.
+          // Le damos un nombre que ayuda a identificarla después.
+          const ext = blob.type.split("/")[1] || "png";
+          const stamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-")
+            .slice(0, 19);
+          const file = new File([blob], `captura-${stamp}.${ext}`, {
+            type: blob.type,
+          });
+
+          e.preventDefault();
+          setSelectedFile(file);
+          toast.success("Imagen pegada desde el portapapeles", {
+            description: `${file.name} · ${(file.size / 1024).toFixed(0)} KB`,
+          });
+          return;
+        }
+      }
+      // Si no había archivo, dejamos que el navegador maneje el paste normal
+      // (ej. el usuario está pegando texto en el campo "Paciente").
+    }
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+    // setSelectedFile es estable (useCallback con [] deps)
+  }, [setSelectedFile]);
 
   const setSelectedFile = useCallback((f: File | null) => {
     if (!f) {
@@ -258,6 +303,20 @@ export default function NuevoPedidoPage() {
                   </div>
                   <div className="text-xs text-stone-400">
                     JPG, PNG, WEBP o PDF · máximo {MAX_SIZE_MB} MB
+                  </div>
+                  {/* Hint pegar desde clipboard */}
+                  <div className="pt-3 flex items-center justify-center gap-2 text-xs text-amber-300/80">
+                    <Clipboard className="h-3.5 w-3.5" />
+                    <span>
+                      o pegá una captura con{" "}
+                      <kbd className="px-1.5 py-0.5 rounded bg-stone-800/80 border border-amber-400/30 font-mono text-[10px] text-amber-200">
+                        Ctrl
+                      </kbd>{" "}
+                      +{" "}
+                      <kbd className="px-1.5 py-0.5 rounded bg-stone-800/80 border border-amber-400/30 font-mono text-[10px] text-amber-200">
+                        V
+                      </kbd>
+                    </span>
                   </div>
                 </div>
               )}
