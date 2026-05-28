@@ -151,11 +151,11 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
           </CardContent>
         </Card>
 
-        {/* Formulario a la derecha */}
+        {/* Formulario a la derecha — armar array de prácticas */}
         <EditPedidoForm
           pedidoId={params.id}
           initial={{
-            practica_detectada: pedido.practica_detectada ?? "",
+            practicas_array: extraerPracticasArray(datos, pedido.practica_detectada),
             obra_social_detectada: pedido.obra_social_detectada ?? "",
             medico_solicitante: (datos.medico_solicitante as string | null) ?? "",
             matricula_medico: (datos.matricula_medico as string | null) ?? "",
@@ -170,4 +170,23 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
       </div>
     </div>
   );
+}
+
+/**
+ * Extrae el array de prácticas del JSON extraccion_ia, con fallback al campo
+ * legacy practica_detectada (para pedidos viejos sin array).
+ */
+function extraerPracticasArray(
+  datos: Record<string, unknown>,
+  practicaDetectada: string | null,
+): string[] {
+  const arr = datos.practicas_array;
+  if (Array.isArray(arr) && arr.length > 0) {
+    const nombres = arr
+      .map((p: any) => (typeof p === "string" ? p : p?.nombre))
+      .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+    if (nombres.length > 0) return nombres;
+  }
+  // Fallback: solo la práctica principal
+  return [practicaDetectada ?? ""];
 }

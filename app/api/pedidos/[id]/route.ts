@@ -14,6 +14,8 @@ import { getServerUser } from "@/lib/auth/server-session";
 
 interface UpdatePayload {
   practica_detectada?: string;
+  /** Lista completa de prácticas (1+). Si no viene, se usa solo practica_detectada. */
+  practicas_array?: Array<{ nombre: string; codigo_nomenclador?: string | null }>;
   obra_social_detectada?: string;
   medico_solicitante?: string;
   matricula_medico?: string;
@@ -73,6 +75,38 @@ export async function PATCH(
       .eq("nombre", body.practica_detectada)
       .maybeSingle();
     if (practica) practicaIdMatched = practica.id;
+  }
+
+  // Si vinieron múltiples prácticas, matchear cada una al catálogo
+  const practicasArrayResult: Array<{
+    nombre: string;
+    codigo_nomenclador: string | null;
+    confianza: number;
+    practica_id: string | null;
+  }> = [];
+  if (Array.isArray(body.practicas_array) && body.practicas_array.length > 0) {
+    for (const p of body.practicas_array) {
+      if (!p.nombre || !p.nombre.trim()) continue;
+      const nombre = p.nombre.trim();
+      let matchId: string | null = null;
+      const { data: practica } = await supabase
+        .from("practicas")
+        .select("id")
+        .eq("tenant_id", user.tenant_id)
+        .eq("nombre", nombre)
+        .maybeSingle();
+      if (practica) matchId = practica.id;
+      practicasArrayResult.push({
+        nombre,
+        codigo_nomenclador: p.codigo_nomenclador ?? null,
+        confianza: 1.0, // Editado por humano = 100%
+        practica_id: matchId,
+      });
+    }
+    // La primera del array es la principal (para columna practica_detectada)
+    if (practicasArrayResult.length > 0 && !body.practica_detectada) {
+      practicaIdMatched = practicasArrayResult[0].practica_id;
+    }
   }
 
   if (body.obra_social_detectada) {
@@ -136,6 +170,11 @@ export async function PATCH(
     practica_id_matched: practicaIdMatched,
     obra_social_id_matched: obraSocialIdMatched,
     confianza_por_campo: confianzaActualizada,
+    // Array de prácticas (sobrescribe el de la IA con la versión corregida por humano)
+    practicas_array:
+      practicasArrayResult.length > 0
+        ? practicasArrayResult
+        : (extraccionPrevia.practicas_array ?? null),
     // Si ahora hay match contra catálogo, el pedido sale de "requiere revisión"
     requiere_revision_manual: !matchingOk,
     // Marca de auditoría: este pedido fue corregido por un humano

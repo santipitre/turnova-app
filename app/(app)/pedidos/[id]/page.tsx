@@ -262,11 +262,10 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 p-0">
-              <DataField
-                icon={Stethoscope}
-                label="Práctica solicitada"
-                value={pedido.practica_detectada}
-                emphasized
+              {/* Múltiples prácticas (si hay array) o única (compat) */}
+              <PracticasField
+                practicasArray={datos.practicas_array as Array<{ nombre: string; codigo_nomenclador?: string | null }> | null}
+                practicaSingle={pedido.practica_detectada}
                 confianza={confianzaPorCampo?.practica_solicitada}
               />
               <DataField
@@ -402,6 +401,92 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
             </Card>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ PracticasField — múltiples prácticas en un pedido ============
+
+function PracticasField({
+  practicasArray,
+  practicaSingle,
+  confianza,
+}: {
+  practicasArray: Array<{ nombre: string; codigo_nomenclador?: string | null }> | null;
+  practicaSingle: string | null;
+  confianza?: number;
+}) {
+  // Determinar lista efectiva: array si existe, sino single
+  const lista =
+    practicasArray && practicasArray.length > 0
+      ? practicasArray
+      : practicaSingle
+        ? [{ nombre: practicaSingle, codigo_nomenclador: null as string | null }]
+        : [];
+
+  const hayValor = lista.length > 0;
+  const multiple = lista.length > 1;
+
+  // Confianza visual
+  const confTier =
+    hayValor && typeof confianza === "number"
+      ? confianza >= 0.85
+        ? { color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30" }
+        : confianza >= 0.6
+          ? { color: "text-amber-300", bg: "bg-amber-400/10", border: "border-amber-400/30" }
+          : { color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/40" }
+      : null;
+
+  const isWeak = confTier && confianza !== undefined && confianza < 0.6;
+
+  return (
+    <div
+      className={`flex items-start gap-3 px-4 py-3 transition-colors ${
+        isWeak ? "bg-red-400/[0.04] hover:bg-red-400/[0.08]" : "hover:bg-stone-900/40"
+      }`}
+    >
+      <div
+        className={`flex-shrink-0 h-8 w-8 rounded flex items-center justify-center mt-0.5 ${
+          isWeak ? "bg-red-400/15" : "bg-stone-800"
+        }`}
+      >
+        <Stethoscope className={`h-4 w-4 ${isWeak ? "text-red-300" : "text-stone-300"}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-widest text-stone-400">
+            {multiple ? `Prácticas solicitadas (${lista.length})` : "Práctica solicitada"}
+          </span>
+          {confTier && typeof confianza === "number" && (
+            <span
+              className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border ${confTier.bg} ${confTier.color} ${confTier.border}`}
+            >
+              {(confianza * 100).toFixed(0)}%
+            </span>
+          )}
+        </div>
+        {hayValor ? (
+          <div className="mt-1 space-y-1">
+            {lista.map((p, idx) => (
+              <div key={idx} className="flex items-baseline gap-2">
+                {multiple && (
+                  <span className="font-mono text-xs text-stone-500 flex-shrink-0">
+                    {idx + 1}.
+                  </span>
+                )}
+                <div className="text-stone-100 font-semibold text-base">{p.nombre}</div>
+                {p.codigo_nomenclador && (
+                  <span className="text-[10px] font-mono text-stone-500 bg-stone-800 px-1.5 py-0.5 rounded">
+                    {p.codigo_nomenclador}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-stone-500 italic text-sm mt-0.5">No legible</div>
+        )}
       </div>
     </div>
   );

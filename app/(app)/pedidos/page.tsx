@@ -182,6 +182,18 @@ export default async function PedidosPage({ searchParams }: Props) {
                 (pedido.extraccion_ia as Record<string, unknown> | null) ?? {};
               const requiereRevision = extraccion.requiere_revision_manual === true;
 
+              // Múltiples prácticas: array dentro de extraccion_ia
+              const practicasArray = extraccion.practicas_array as
+                | Array<{ nombre: string }>
+                | null
+                | undefined;
+              const cantidadPracticas =
+                Array.isArray(practicasArray) && practicasArray.length > 0
+                  ? practicasArray.length
+                  : pedido.practica_detectada
+                    ? 1
+                    : 0;
+
               // Badge "Revisar" ahora es un link directo al editor
               const estadoBadge = requiereRevision ? (
                 <Link
@@ -215,7 +227,17 @@ export default async function PedidosPage({ searchParams }: Props) {
                     {paciente ? `${paciente.nombre} ${paciente.apellido}` : "—"}
                   </TableCell>
                   <TableCell className="text-stone-300 text-sm">
-                    {pedido.practica_detectada ?? "—"}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>{pedido.practica_detectada ?? "—"}</span>
+                      {cantidadPracticas > 1 && (
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-400/40 bg-amber-400/10 text-amber-300"
+                          title={`Este pedido tiene ${cantidadPracticas} prácticas`}
+                        >
+                          +{cantidadPracticas - 1} más
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="default" className="font-medium">

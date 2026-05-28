@@ -24,8 +24,18 @@ export interface ConfianzaPorCampo {
   fecha_pedido?: number;
 }
 
+/** Una práctica individual extraída del pedido. */
+export interface PracticaExtraida {
+  nombre: string;
+  codigo_nomenclador?: string | null;
+  confianza?: number;
+}
+
 export interface DatosExtraidos {
+  /** Práctica principal (primera del array) — para compat con código viejo. */
   practica_solicitada: string | null;
+  /** Lista completa de prácticas detectadas en el pedido (1+). */
+  practicas_solicitadas?: PracticaExtraida[] | null;
   codigo_nomenclador: string | null;
   obra_social: string | null;
   numero_afiliado: string | null;
@@ -239,6 +249,13 @@ ${osLines}
 ${practicasLines}
 
 **REGLA**: \`practica_solicitada\` DEBE ser el nombre EXACTO de una práctica de arriba. Si el pedido tiene código nomenclador, devolvelo en \`codigo_nomenclador\`. Si NINGUNA del catálogo encaja con lo que leíste → null y baja la confianza.
+
+**MÚLTIPLES PRÁCTICAS — MUY COMÚN**: muchos pedidos médicos solicitan VARIAS prácticas a la vez. Ejemplos:
+- "TAC de tórax, abdomen y pelvis" → 3 prácticas (TAC tórax, TAC abdomen, TAC pelvis)
+- "Lab. completo + ECG + Rx tórax" → 3 prácticas
+- "RMN columna cervical y lumbar" → 2 prácticas
+
+En estos casos devolvé en \`practicas_solicitadas\` el ARRAY completo (cada práctica del catálogo, una entrada por estudio). Y en \`practica_solicitada\` poné la PRIMERA del array (compat con UI).
 `
       : "";
 
@@ -338,6 +355,9 @@ Devolvé ÚNICAMENTE este JSON, sin markdown, sin texto antes/después:
 
 {
   "practica_solicitada": string|null,
+  "practicas_solicitadas": [
+    { "nombre": string, "codigo_nomenclador": string|null, "confianza": number }
+  ],
   "codigo_nomenclador": string|null,
   "obra_social": string|null,
   "numero_afiliado": string|null,
@@ -359,6 +379,12 @@ Devolvé ÚNICAMENTE este JSON, sin markdown, sin texto antes/después:
   "especialidad_inferida": string|null,
   "razonamiento": string|null
 }
+
+**REGLA IMPORTANTE sobre el array `practicas_solicitadas`:**
+- Si hay UNA práctica: array de 1 elemento. \`practica_solicitada\` = ese mismo nombre.
+- Si hay VARIAS prácticas: array con TODAS, una por elemento. \`practica_solicitada\` = la primera del array.
+- Cada práctica debe ser un nombre EXACTO del catálogo (sin variantes inventadas).
+- Si NO podés identificar ninguna práctica del catálogo: array vacío [] y \`practica_solicitada\`: null.
 
 \`razonamiento\` es UN renglón corto (max 200 chars). Mencioná:
 - Qué campos quedaron en null y por qué (ilegible / no está en catálogo / etc.)
@@ -443,6 +469,37 @@ export async function extraerDatosPedido(
     const match = textResponse.match(/\{[\s\S]*\}/);
     if (!match) throw new Error(`No se pudo parsear JSON: ${textResponse.slice(0, 200)}`);
     parsed = JSON.parse(match[0]);
+  }
+
+  // Normalizar array de prácticas (backwards-compat)
+  if (!Array.isArray(parsed.practicas_solicitadas)) {
+    // Fallback: armar array desde practica_solicitada single
+    if (parsed.practica_solicitada) {
+      parsed.practicas_solicitadas = [
+        {
+          nombre: parsed.practica_solicitada,
+          codigo_nomenclador: parsed.codigo_nomenclador ?? null,
+          confianza:
+            parsed.confianza_por_campo?.practica_solicitada ?? parsed.confianza ?? 0.8,
+        },
+      ];
+    } else {
+      parsed.practicas_solicitadas = [];
+    }
+  } else {
+    // Validar cada elemento del array
+    parsed.practicas_solicitadas = parsed.practicas_solicitadas
+      .filter((p): p is PracticaExtraida => !!p && typeof p.nombre === "string" && p.nombre.trim().length > 0)
+      .map((p) => ({
+        nombre: p.nombre.trim(),
+        codigo_nomenclador: p.codigo_nomenclador ?? null,
+        confianza: typeof p.confianza === "number" ? Math.max(0, Math.min(1, p.confianza)) : 0.8,
+      }));
+    // Asegurar que practica_solicitada single sea la primera del array
+    if (parsed.practicas_solicitadas.length > 0 && !parsed.practica_solicitada) {
+      parsed.practica_solicitada = parsed.practicas_solicitadas[0].nombre;
+      parsed.codigo_nomenclador = parsed.practicas_solicitadas[0].codigo_nomenclador ?? null;
+    }
   }
 
   // Normalizar confianza global (clamp 0-1, fallback 0.5)

@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Save, Stethoscope, Shield, User, IdCard, FileText, Calendar, AlertTriangle } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  Stethoscope,
+  Shield,
+  User,
+  IdCard,
+  FileText,
+  Calendar,
+  AlertTriangle,
+  Plus,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +24,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
 interface InitialData {
-  practica_detectada: string;
+  /** Array de prácticas. La primera es la principal. */
+  practicas_array: string[];
   obra_social_detectada: string;
   medico_solicitante: string;
   matricula_medico: string;
@@ -38,14 +51,50 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function updatePractica(index: number, value: string) {
+    setForm((prev) => {
+      const next = [...prev.practicas_array];
+      next[index] = value;
+      return { ...prev, practicas_array: next };
+    });
+  }
+
+  function addPractica() {
+    setForm((prev) => ({
+      ...prev,
+      practicas_array: [...prev.practicas_array, ""],
+    }));
+  }
+
+  function removePractica(index: number) {
+    setForm((prev) => {
+      const next = prev.practicas_array.filter((_, i) => i !== index);
+      // Siempre tener al menos un input visible (vacío)
+      return { ...prev, practicas_array: next.length > 0 ? next : [""] };
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
+      // Construir payload con campo legacy + array
+      const practicasLimpias = form.practicas_array
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
+      const payload = {
+        ...form,
+        // Campo legacy: primera práctica (para compat con código viejo)
+        practica_detectada: practicasLimpias[0] ?? "",
+        // Array completo
+        practicas_array: practicasLimpias.map((nombre) => ({ nombre })),
+      };
+
       const res = await fetch(`/api/pedidos/${pedidoId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -82,23 +131,64 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
           <CardTitle className="text-stone-100 text-base">Campos extraídos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 pt-6">
-          {/* Práctica solicitada — input con datalist (sugiere del catálogo, permite tipear libre) */}
-          <div className="space-y-1.5">
-            <Label htmlFor="practica" className="flex items-center gap-2 text-stone-200">
+          {/* Prácticas solicitadas — múltiples (un pedido puede pedir varios estudios) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-stone-200">
               <Stethoscope className="h-3.5 w-3.5 text-amber-300" />
-              Práctica solicitada
+              Prácticas solicitadas
               <span className="text-xs text-stone-500 font-normal ml-1">
-                ({practicas.length} en catálogo)
+                ({form.practicas_array.length} {form.practicas_array.length === 1 ? "práctica" : "prácticas"} · {practicas.length} en catálogo)
               </span>
             </Label>
-            <Input
-              id="practica"
-              list="practicas-list"
-              value={form.practica_detectada}
-              onChange={(e) => update("practica_detectada", e.target.value)}
-              placeholder="Empezá a escribir o elegí del catálogo…"
-              autoComplete="off"
-            />
+
+            <div className="space-y-2">
+              {form.practicas_array.map((practica, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <div className="flex-1 relative">
+                    <Input
+                      list="practicas-list"
+                      value={practica}
+                      onChange={(e) => updatePractica(idx, e.target.value)}
+                      placeholder={
+                        idx === 0
+                          ? "Práctica principal (ej: TAC tórax)…"
+                          : "Práctica adicional…"
+                      }
+                      autoComplete="off"
+                    />
+                    {idx === 0 && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] uppercase tracking-wider text-amber-300/80 font-semibold bg-stone-950/80 px-1.5 py-0.5 rounded pointer-events-none">
+                        Principal
+                      </span>
+                    )}
+                  </div>
+                  {form.practicas_array.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePractica(idx)}
+                      className="flex-shrink-0 h-9 w-9 p-0 text-stone-500 hover:text-red-400 hover:bg-red-400/10"
+                      title="Quitar práctica"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={addPractica}
+              className="text-amber-300 hover:bg-amber-400/10 hover:text-amber-200 font-medium"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Agregar otra práctica
+            </Button>
+
             <datalist id="practicas-list">
               {Object.entries(practicasPorServicio).map(([servicio, items]) =>
                 items.map((p) => (

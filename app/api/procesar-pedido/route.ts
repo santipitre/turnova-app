@@ -216,6 +216,36 @@ export async function POST(request: Request) {
     practicaId = match ?? null;
   }
 
+  // Matchear TODAS las prácticas del array contra el catálogo
+  // (la principal ya quedó en practicaId arriba)
+  const practicasArray: Array<{
+    nombre: string;
+    codigo_nomenclador: string | null;
+    confianza: number;
+    practica_id: string | null;
+  }> = [];
+  if (Array.isArray(datos.practicas_solicitadas) && datos.practicas_solicitadas.length > 0) {
+    for (const p of datos.practicas_solicitadas) {
+      let matchId: string | null = null;
+      try {
+        const { data: match } = await admin.rpc("match_practica", {
+          p_tenant_id: profile.tenant_id,
+          p_nombre_detectado: p.nombre,
+        });
+        matchId = match ?? null;
+      } catch (e) {
+        console.warn(`[procesar] match falló para práctica "${p.nombre}":`, e);
+      }
+      practicasArray.push({
+        nombre: p.nombre,
+        codigo_nomenclador: p.codigo_nomenclador ?? null,
+        confianza: p.confianza ?? 0.8,
+        practica_id: matchId,
+      });
+    }
+    console.log(`[procesar] ${practicasArray.length} prácticas detectadas, ${practicasArray.filter((p) => p.practica_id).length} matcheadas al catálogo`);
+  }
+
   // ---------------------------------------------------------------
   // 5. Decidir si requiere revisión manual
   // ---------------------------------------------------------------
@@ -245,6 +275,8 @@ export async function POST(request: Request) {
       ...datos,
       practica_id_matched: practicaId,
       obra_social_id_matched: obraSocialId,
+      // Array de TODAS las prácticas detectadas (1+) con su match al catálogo
+      practicas_array: practicasArray,
       requiere_revision_manual: requiereRevision,
       tiempo_procesamiento_ms: tiempoIA,
     },
