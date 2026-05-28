@@ -18,7 +18,12 @@ const RUTAS_PUBLICAS = [
 
 export async function updateSession(request: NextRequest) {
   const url = request.nextUrl.clone();
-  const esRutaPublica = RUTAS_PUBLICAS.some((r) => url.pathname.startsWith(r));
+  // La raíz "/" muestra la landing pública (la sirve app/page.tsx).
+  // Por eso es pública SIN importar si hay sesión o no — el banner
+  // "Ir a mi panel" se muestra dentro del componente si hay sesión.
+  const esRaiz = url.pathname === "/";
+  const esRutaPublica =
+    esRaiz || RUTAS_PUBLICAS.some((r) => url.pathname.startsWith(r));
 
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = decodeSession(sessionCookie);
