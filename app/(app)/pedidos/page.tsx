@@ -34,7 +34,7 @@ export default async function PedidosPage({ searchParams }: Props) {
     .from("pedidos_medicos")
     .select(`
       id, created_at, practica_detectada, obra_social_detectada,
-      confianza_ia, estado, canal_origen, requiere_revision_manual,
+      confianza_ia, estado, canal_origen, extraccion_ia,
       paciente:pacientes(nombre, apellido)
     `)
     .order("created_at", { ascending: false })
@@ -176,7 +176,12 @@ export default async function PedidosPage({ searchParams }: Props) {
                   <span className="text-xs text-stone-400">{pedido.canal_origen ?? "—"}</span>
                 );
 
-              const estadoBadge = pedido.requiere_revision_manual ? (
+              // El flag requiere_revision_manual vive dentro del JSONB extraccion_ia
+              const extraccion =
+                (pedido.extraccion_ia as Record<string, unknown> | null) ?? {};
+              const requiereRevision = extraccion.requiere_revision_manual === true;
+
+              const estadoBadge = requiereRevision ? (
                 <span className="inline-flex items-center gap-1.5">
                   <AlertTriangle className="h-3 w-3 text-lumen-ember" />
                   <span className="text-xs font-medium text-lumen-ember">Revisar</span>

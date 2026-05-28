@@ -84,7 +84,9 @@ export async function PATCH(
   }
 
   // 5. Merge extraccion_ia preservando metadata original + flags de edición humana
+  // NOTA: requiere_revision_manual vive DENTRO del JSON extraccion_ia, NO es columna.
   const extraccionPrevia = (pedido.extraccion_ia as Record<string, unknown>) || {};
+  const matchingOk = !!(practicaIdMatched && obraSocialIdMatched);
   const nuevaExtraccion = {
     ...extraccionPrevia,
     medico_solicitante: body.medico_solicitante || null,
@@ -95,23 +97,21 @@ export async function PATCH(
     urgencia_indicada: !!body.urgencia_indicada,
     practica_id_matched: practicaIdMatched,
     obra_social_id_matched: obraSocialIdMatched,
+    // Si ahora hay match contra catálogo, el pedido sale de "requiere revisión"
+    requiere_revision_manual: !matchingOk,
     // Marca de auditoría: este pedido fue corregido por un humano
     editado_manualmente: true,
     editado_por: user.username,
     editado_en: new Date().toISOString(),
   };
 
-  // 6. Update pedido
-  const matchingOk = !!(practicaIdMatched && obraSocialIdMatched);
-
+  // 6. Update pedido (solo columnas que existen en la tabla)
   const { error: updateErr } = await supabase
     .from("pedidos_medicos")
     .update({
       practica_detectada: body.practica_detectada || null,
       obra_social_detectada: body.obra_social_detectada || null,
       extraccion_ia: nuevaExtraccion,
-      // Si ahora hay match contra catálogo, el pedido sale de "requiere revisión"
-      requiere_revision_manual: !matchingOk,
       // Bumpear confianza a 1.0 porque ahora es decisión humana
       confianza_ia: 1.0,
       updated_at: new Date().toISOString(),
