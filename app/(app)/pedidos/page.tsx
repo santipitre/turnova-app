@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   AlertTriangle,
   Sparkles,
+  Edit3,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
@@ -181,11 +182,16 @@ export default async function PedidosPage({ searchParams }: Props) {
                 (pedido.extraccion_ia as Record<string, unknown> | null) ?? {};
               const requiereRevision = extraccion.requiere_revision_manual === true;
 
+              // Badge "Revisar" ahora es un link directo al editor
               const estadoBadge = requiereRevision ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <AlertTriangle className="h-3 w-3 text-lumen-ember" />
-                  <span className="text-xs font-medium text-lumen-ember">Revisar</span>
-                </span>
+                <Link
+                  href={`/pedidos/${pedido.id}/editar`}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-amber-400/40 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 hover:border-amber-400/60 transition-colors text-xs font-semibold"
+                  title="Editar datos del pedido"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  Revisar
+                </Link>
               ) : pedido.estado === "asignado" ? (
                 <StatusDot variant="pulse" label="Asignado" size="md" />
               ) : pedido.estado === "procesado" ? (
@@ -221,18 +227,45 @@ export default async function PedidosPage({ searchParams }: Props) {
                   </TableCell>
                   <TableCell>{estadoBadge}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/pedidos/${pedido.id}`}>
-                        {pedido.estado === "procesado" ? (
-                          <>
-                            Asignar
-                            <ArrowUpRight className="h-3.5 w-3.5" />
-                          </>
-                        ) : (
-                          <ArrowUpRight className="h-4 w-4" />
-                        )}
-                      </Link>
-                    </Button>
+                    {requiereRevision ? (
+                      // Pedido necesita revisión humana → botón Editar SIEMPRE visible
+                      <Button
+                        size="sm"
+                        asChild
+                        className="bg-amber-400 text-stone-950 hover:bg-amber-300 font-semibold shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+                      >
+                        <Link href={`/pedidos/${pedido.id}/editar`}>
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Editar
+                        </Link>
+                      </Button>
+                    ) : pedido.estado === "procesado" ? (
+                      // Listo para asignar turno → botón Asignar SIEMPRE visible
+                      <Button
+                        size="sm"
+                        asChild
+                        variant="outline"
+                        className="border-lumen-glow/40 text-lumen-glow hover:bg-lumen-glow/10 hover:text-lumen-glow hover:border-lumen-glow font-semibold"
+                      >
+                        <Link href={`/pedidos/${pedido.id}`}>
+                          Asignar
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      // Asignado / error / otros → botón Ver en hover
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Link href={`/pedidos/${pedido.id}`}>
+                          Ver
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               );
