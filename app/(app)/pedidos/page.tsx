@@ -26,12 +26,13 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Pedidos Médicos" };
 
 interface Props {
-  searchParams: { estado?: string };
+  searchParams: { estado?: string; vip?: string };
 }
 
 export default async function PedidosPage({ searchParams }: Props) {
   const supabase = createClient();
   const estadoFiltro = searchParams.estado ?? "todos";
+  const soloVip = searchParams.vip === "1";
 
   let query = supabase
     .from("pedidos_medicos")
@@ -48,6 +49,9 @@ export default async function PedidosPage({ searchParams }: Props) {
   }
 
   const { data: pedidos } = await query;
+
+  // Normaliza nombre de OS para lookup case-insensitive
+  const normalizarOS = (os: string | null) => (os ?? "").toUpperCase().trim();
 
   // Cargar OS VIP del tenant (para badge ⭐ + SLA countdown)
   // Mapa lookup case-insensitive: nombre normalizado → { es_vip, prioridad, sla_h }
@@ -70,13 +74,46 @@ export default async function PedidosPage({ searchParams }: Props) {
     console.warn("[pedidos] no se pudo cargar OS VIP:", err);
   }
 
-  // Conteos por estado
-  const { data: estadosConteo } = await supabase.from("pedidos_medicos").select("estado");
+  // Conteos por estado (+ obra social para contar VIP pendientes)
+  const { data: estadosConteo } = await supabase
+    .from("pedidos_medicos")
+    .select("estado, obra_social_detectada");
   const conteos = (estadosConteo ?? []).reduce<Record<string, number>>((acc, { estado }) => {
     acc[estado] = (acc[estado] ?? 0) + 1;
     return acc;
   }, {});
   const totalPedidos = estadosConteo?.length ?? 0;
+
+  // VIP pendientes (no asignados) cuya OS está en el mapa VIP → para el contador del chip
+  const vipPendientes = (estadosConteo ?? []).filter(
+    (r) => r.estado !== "asignado" && vipMap.has(normalizarOS(r.obra_social_detectada)),
+  ).length;
+
+  // Enriquecer cada pedido con su info VIP (match por OS)
+  const pedidosEnriquecidos = (pedidos ?? []).map((p) => ({
+    ...p,
+    vipInfo: vipMap.get(normalizarOS(p.obra_social_detectada)),
+  }));
+
+  // Filtro "solo VIP"
+  const pedidosFiltrados = soloVip
+    ? pedidosEnriquecidos.filter((p) => p.vipInfo)
+    : pedidosEnriquecidos;
+
+  // Orden: VIP pendientes arriba por prioridad (#1 primero), a igual prioridad el más
+  // antiguo primero (SLA corriendo); el resto por fecha descendente.
+  const pedidosOrdenados = [...pedidosFiltrados].sort((a, b) => {
+    const aVipPend = !!a.vipInfo && a.estado !== "asignado";
+    const bVipPend = !!b.vipInfo && b.estado !== "asignado";
+    if (aVipPend !== bVipPend) return aVipPend ? -1 : 1;
+    if (aVipPend && bVipPend) {
+      const pa = a.vipInfo?.prioridad ?? 999;
+      const pb = b.vipInfo?.prioridad ?? 999;
+      if (pa !== pb) return pa - pb;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   const chips = [
     { key: "todos", label: "Todos", count: totalPedidos, dot: "muted" as const },
@@ -123,7 +160,7 @@ export default async function PedidosPage({ searchParams }: Props) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-2 flex-wrap">
           {chips.map((chip) => {
-          const isActive = estadoFiltro === chip.key || (chip.key === "todos" && estadoFiltro === "todos");
+          const isActive = !soloVip && (estadoFiltro === chip.key || (chip.key === "todos" && estadoFiltro === "todos"));
           return (
             <Link
               key={chip.key}
@@ -149,6 +186,25 @@ export default async function PedidosPage({ searchParams }: Props) {
             </Link>
           );
         })}
+
+          {/* Filtro rápido: solo pedidos VIP */}
+          <Link
+            href={soloVip ? "/pedidos" : "/pedidos?vip=1"}
+            className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-lumen-sm text-sm font-semibold transition-all duration-fast border ${
+              soloVip
+                ? "bg-gradient-to-r from-amber-300 to-amber-400 text-stone-950 border-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.4)]"
+                : "bg-amber-400/10 text-amber-200 border-amber-400/40 hover:border-amber-300 hover:bg-amber-400/20"
+            }`}
+            title={soloVip ? "Quitar filtro VIP" : "Mostrar solo pedidos VIP"}
+          >
+            <span className="text-[11px] leading-none">⭐</span>
+            <span>VIP</span>
+            <span className={`font-mono text-xs tabular-nums ${
+              soloVip ? "text-stone-900/80" : "text-amber-300"
+            }`}>
+              {vipPendientes}
+            </span>
+          </Link>
         </div>
 
         {/* Botón refresh + auto-refresh cada 30s */}
@@ -171,7 +227,7 @@ export default async function PedidosPage({ searchParams }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(pedidos ?? []).length === 0 && (
+            {pedidosOrdenados.length === 0 && (
               <TableRow className="border-stone-800 hover:bg-transparent">
                 <TableCell colSpan={8} className="text-center py-16">
                   <div className="space-y-3">
@@ -180,7 +236,9 @@ export default async function PedidosPage({ searchParams }: Props) {
                       style={{ filter: "drop-shadow(0 0 12px rgba(251, 191, 36, 0.35))" }}
                     />
                     <div>
-                      <p className="font-medium text-stone-200">No hay pedidos con este filtro</p>
+                      <p className="font-medium text-stone-200">
+                        {soloVip ? "No hay pedidos VIP pendientes" : "No hay pedidos con este filtro"}
+                      </p>
                       <p className="text-xs mt-1 text-stone-400">
                         Probá otro estado o cargá un pedido manual desde el botón superior.
                       </p>
@@ -189,7 +247,7 @@ export default async function PedidosPage({ searchParams }: Props) {
                 </TableCell>
               </TableRow>
             )}
-            {(pedidos ?? []).map((pedido) => {
+            {pedidosOrdenados.map((pedido) => {
               const paciente = Array.isArray(pedido.paciente) ? pedido.paciente[0] : pedido.paciente;
 
               const canalUI =
@@ -222,9 +280,9 @@ export default async function PedidosPage({ searchParams }: Props) {
                     ? 1
                     : 0;
 
-              // Match VIP: buscar la OS del pedido en el mapa de VIPs
-              const osDetectada = (pedido.obra_social_detectada ?? "").toUpperCase().trim();
-              const vipInfo = osDetectada ? vipMap.get(osDetectada) : undefined;
+              // Info VIP ya resuelta al enriquecer el pedido (match por OS)
+              const vipInfo = pedido.vipInfo;
+              const vipPendiente = !!vipInfo && pedido.estado !== "asignado";
 
               // Badge "Revisar" ahora es un link directo al editor
               const estadoBadge = requiereRevision ? (
@@ -249,7 +307,11 @@ export default async function PedidosPage({ searchParams }: Props) {
               return (
                 <TableRow
                   key={pedido.id}
-                  className="group hover:bg-amber-400/[0.04] border-stone-800/60 transition-colors cursor-pointer"
+                  className={`group border-stone-800/60 transition-colors cursor-pointer ${
+                    vipPendiente
+                      ? "bg-amber-400/[0.06] hover:bg-amber-400/[0.1] border-l-2 border-l-amber-400/70"
+                      : "hover:bg-amber-400/[0.04]"
+                  }`}
                 >
                   <TableCell className="font-mono text-xs text-stone-400">
                     {formatFecha(pedido.created_at, "dd/MM HH:mm")}
@@ -341,7 +403,8 @@ export default async function PedidosPage({ searchParams }: Props) {
       </Card>
 
       <div className="text-xs text-stone-400 text-center font-mono">
-        Mostrando {pedidos?.length ?? 0} de {totalPedidos} pedidos
+        Mostrando {pedidosOrdenados.length} de {totalPedidos} pedidos
+        {soloVip && " · filtrando solo VIP"}
       </div>
     </div>
   );
