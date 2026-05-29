@@ -10,11 +10,12 @@ import {
   Trash2,
   Loader2,
   Layers,
+  AlertTriangle,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
-import { colorPorOcupacion } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,10 +39,24 @@ interface Props {
   usadosMap: Record<string, Record<string, number>>;
 }
 
-const COLOR_CLASS: Record<string, string> = {
-  success: "bg-lumen-pulse",
-  warning: "bg-pyralis-warning",
-  danger: "bg-pyralis-danger",
+type Ocupacion = "ok" | "aviso" | "agotado";
+
+/** Regla de negocio: <80% saludable · 80-99% reserva urgencias · 100% agotado/cortado. */
+function ocupacionEstado(pct: number): Ocupacion {
+  if (pct >= 100) return "agotado";
+  if (pct >= 80) return "aviso";
+  return "ok";
+}
+
+const BAR_CLASS: Record<Ocupacion, string> = {
+  ok: "bg-lumen-pulse",
+  aviso: "bg-pyralis-warning",
+  agotado: "bg-pyralis-danger",
+};
+const TXT_CLASS: Record<Ocupacion, string> = {
+  ok: "text-lumen-pulse",
+  aviso: "text-pyralis-warning",
+  agotado: "text-pyralis-danger",
 };
 
 export function CuposManager({
@@ -86,6 +101,25 @@ export function CuposManager({
   const disponiblesParaAgregar = obrasNoVip.filter(
     (o) => !rowIds.includes(o.id),
   );
+
+  // Avisos de ocupación (≥80%) y cortes (100%) de la semana
+  const alertas = useMemo(() => {
+    const aviso: string[] = [];
+    const agotado: string[] = [];
+    rowIds.forEach((osId) => {
+      const tot = cuposMap[osId] ?? {};
+      const us = usadosMap[osId] ?? {};
+      servicios.forEach((s) => {
+        const total = tot[s.nombre] ?? 0;
+        if (total === 0) return;
+        const pct = ((us[s.nombre] ?? 0) / total) * 100;
+        const etiqueta = `${nombreOS[osId]} · ${s.nombre}`;
+        if (pct >= 100) agotado.push(etiqueta);
+        else if (pct >= 80) aviso.push(etiqueta);
+      });
+    });
+    return { aviso, agotado };
+  }, [rowIds, cuposMap, usadosMap, servicios, nombreOS]);
 
   function startEdit(osId: string) {
     const current = cuposMap[osId] ?? {};
@@ -183,13 +217,13 @@ export function CuposManager({
             <CardTitle>Matriz de ocupación</CardTitle>
             <div className="flex gap-4 mt-2 text-caption text-stone-400">
               <span className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-lumen-pulse" /> Saludable (&lt;70%)
+                <div className="w-3 h-3 rounded-sm bg-lumen-pulse" /> Saludable (&lt;80%)
               </span>
               <span className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-pyralis-warning" /> Cuidado (70-90%)
+                <div className="w-3 h-3 rounded-sm bg-pyralis-warning" /> Aviso · reserva urgencias (80-99%)
               </span>
               <span className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-pyralis-danger" /> Saturado (&gt;90%)
+                <div className="w-3 h-3 rounded-sm bg-pyralis-danger" /> Agotado · prestación cortada (100%)
               </span>
             </div>
           </div>
@@ -237,6 +271,28 @@ export function CuposManager({
         </div>
       </CardHeader>
       <CardContent>
+        {(alertas.agotado.length > 0 || alertas.aviso.length > 0) && (
+          <div className="mb-4 space-y-2">
+            {alertas.agotado.length > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-pyralis-danger/30 bg-pyralis-danger/10 px-3 py-2 text-sm text-pyralis-danger">
+                <Ban className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Prestación cortada (100%)</strong> en {alertas.agotado.length}:{" "}
+                  {alertas.agotado.join(", ")}. Se reanuda al abrir los cupos de la próxima semana.
+                </span>
+              </div>
+            )}
+            {alertas.aviso.length > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-pyralis-warning/30 bg-pyralis-warning/10 px-3 py-2 text-sm text-pyralis-warning">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Reserva de urgencias (≥80%)</strong> en {alertas.aviso.length}:{" "}
+                  {alertas.aviso.join(", ")}. Los pedidos no urgentes pasan al próximo período.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -302,20 +358,34 @@ export function CuposManager({
                           </td>
                         );
                       }
-                      const pct = (used / total) * 100;
-                      const cls = COLOR_CLASS[colorPorOcupacion(pct)];
+                      const pct = Math.round((used / total) * 100);
+                      const estado = ocupacionEstado(pct);
                       return (
-                        <td key={s.id} className="p-3 min-w-[120px]">
-                          <div className="text-sm font-semibold text-stone-100">
-                            {used}
-                            <span className="text-stone-400">/{total}</span>
+                        <td key={s.id} className="p-3 min-w-[130px]">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-sm font-semibold text-stone-100">
+                              {used}
+                              <span className="text-stone-400">/{total}</span>
+                            </span>
+                            <span className={`text-xs font-bold ${TXT_CLASS[estado]}`}>
+                              {pct}%
+                            </span>
                           </div>
                           <div className="w-full h-1.5 bg-stone-800/60 rounded-full overflow-hidden mt-1.5">
                             <div
-                              className={`h-full ${cls} transition-all`}
+                              className={`h-full ${BAR_CLASS[estado]} transition-all`}
                               style={{ width: `${Math.min(100, pct)}%` }}
                             />
                           </div>
+                          {estado === "agotado" ? (
+                            <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-pyralis-danger">
+                              <Ban className="h-3 w-3" /> Cupo agotado · cortado
+                            </div>
+                          ) : estado === "aviso" ? (
+                            <div className="mt-1 flex items-center gap-1 text-[10px] font-medium text-pyralis-warning">
+                              <AlertTriangle className="h-3 w-3" /> Reserva urgencias
+                            </div>
+                          ) : null}
                         </td>
                       );
                     })}
