@@ -18,6 +18,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@
 import { StatusDot } from "@/components/lumen/status-dot";
 import { ConfidenceBar } from "@/components/lumen/confidence-bar";
 import { RefreshPedidosButton } from "@/components/pedidos/refresh-button";
+import { VipBadge, VipCountdown } from "@/components/pedidos/vip-countdown";
 import { formatFecha } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,27 @@ export default async function PedidosPage({ searchParams }: Props) {
   }
 
   const { data: pedidos } = await query;
+
+  // Cargar OS VIP del tenant (para badge ⭐ + SLA countdown)
+  // Mapa lookup case-insensitive: nombre normalizado → { es_vip, prioridad, sla_h }
+  const vipMap = new Map<
+    string,
+    { prioridad: number | null; tiempo_max_respuesta_horas: number | null }
+  >();
+  try {
+    const { data: osVip } = await supabase
+      .from("obras_sociales")
+      .select("nombre, prioridad, tiempo_max_respuesta_horas")
+      .eq("es_vip", true);
+    for (const os of osVip ?? []) {
+      vipMap.set(os.nombre.toUpperCase().trim(), {
+        prioridad: os.prioridad,
+        tiempo_max_respuesta_horas: os.tiempo_max_respuesta_horas,
+      });
+    }
+  } catch (err) {
+    console.warn("[pedidos] no se pudo cargar OS VIP:", err);
+  }
 
   // Conteos por estado
   const { data: estadosConteo } = await supabase.from("pedidos_medicos").select("estado");
@@ -200,6 +222,10 @@ export default async function PedidosPage({ searchParams }: Props) {
                     ? 1
                     : 0;
 
+              // Match VIP: buscar la OS del pedido en el mapa de VIPs
+              const osDetectada = (pedido.obra_social_detectada ?? "").toUpperCase().trim();
+              const vipInfo = osDetectada ? vipMap.get(osDetectada) : undefined;
+
               // Badge "Revisar" ahora es un link directo al editor
               const estadoBadge = requiereRevision ? (
                 <Link
@@ -246,9 +272,21 @@ export default async function PedidosPage({ searchParams }: Props) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="default" className="font-medium">
-                      {pedido.obra_social_detectada ?? "—"}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="default" className="font-medium">
+                          {pedido.obra_social_detectada ?? "—"}
+                        </Badge>
+                        {vipInfo && <VipBadge prioridad={vipInfo.prioridad} />}
+                      </div>
+                      {vipInfo && pedido.estado !== "asignado" && (
+                        <VipCountdown
+                          creadoEn={pedido.created_at}
+                          slaHoras={vipInfo.tiempo_max_respuesta_horas ?? 12}
+                          prioridad={vipInfo.prioridad}
+                        />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <ConfidenceBar value={pedido.confianza_ia ?? 0} size="sm" />
