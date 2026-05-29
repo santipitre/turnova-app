@@ -140,7 +140,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
             <span>{formatTiempoRelativo(pedido.created_at)}</span>
           </div>
 
-          <h1 className="text-3xl font-bold text-stone-100">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-100 via-amber-300 to-orange-400 bg-clip-text text-transparent">
             {paciente ? `${paciente.nombre} ${paciente.apellido}` : "Paciente sin asignar"}
           </h1>
 
