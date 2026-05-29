@@ -14,6 +14,7 @@ import {
   Calendar,
   AlertTriangle,
   Plus,
+  Minus,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -163,17 +164,35 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
             <div className="space-y-2">
               {form.practicas_array.map((practica, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
-                  <div className="flex-shrink-0 flex items-center gap-1">
-                    <span className="text-stone-500 text-sm font-medium select-none">x</span>
-                    <Input
+                  <div
+                    className="flex-shrink-0 flex items-center h-10 rounded border border-stone-800 bg-stone-900/60 overflow-hidden"
+                    title="Cantidad de estudios"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => updateCantidad(idx, (form.cantidades_array[idx] ?? 1) - 1)}
+                      disabled={(form.cantidades_array[idx] ?? 1) <= 1}
+                      aria-label="Disminuir cantidad"
+                      className="flex items-center justify-center h-full w-8 text-stone-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-stone-400"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <input
                       type="number"
                       min={1}
                       value={form.cantidades_array[idx] ?? 1}
                       onChange={(e) => updateCantidad(idx, Number(e.target.value))}
-                      className="w-14 text-center font-semibold"
-                      title="Cantidad de estudios"
                       aria-label="Cantidad de estudios"
+                      className="w-9 h-full bg-transparent text-center text-stone-100 font-semibold text-sm focus:outline-none border-x border-stone-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
+                    <button
+                      type="button"
+                      onClick={() => updateCantidad(idx, (form.cantidades_array[idx] ?? 1) + 1)}
+                      aria-label="Aumentar cantidad"
+                      className="flex items-center justify-center h-full w-8 text-stone-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="flex-1 relative">
                     <Input
