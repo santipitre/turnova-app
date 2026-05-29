@@ -139,7 +139,7 @@ export default async function DashboardPage() {
         <div className="relative">
           <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-stone-400 mb-2">
             <span className="lumen-dot-pulse" />
-            <span>IA operativa · Claude Sonnet 4.5</span>
+            <span>IA operativa · Claude Opus 4.7</span>
           </div>
 
           <h1 className="text-display-lg text-white mb-1">

@@ -418,7 +418,7 @@ const features = [
   {
     icon: Sparkles,
     title: "Motor de extracción IA",
-    description: "Claude Sonnet 4.5 lee fotos y PDFs de pedidos médicos argentinos. Identifica práctica, obra social, médico solicitante, urgencia y más. 95% precisión.",
+    description: "Claude Opus 4.7 lee fotos y PDFs de pedidos médicos argentinos. Identifica práctica, obra social, médico solicitante, urgencia y más. 95% precisión.",
     iconBg: "bg-lumen-aurora/15",
     iconColor: "text-lumen-aurora",
     glow: "bg-lumen-aurora",

@@ -127,7 +127,7 @@ export function Sidebar({ pedidosPendientes = 0 }: { pedidosPendientes?: number 
           <Sparkles className="h-3.5 w-3.5" style={{ filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.7))" }} />
           <span style={{ textShadow: "0 0 8px rgba(251, 191, 36, 0.4)" }}>IA operativa</span>
         </div>
-        <div className="text-stone-300">Procesando pedidos · Claude Sonnet 4.6</div>
+        <div className="text-stone-300">Procesando pedidos · Claude Opus 4.7</div>
       </div>
     </aside>
   );

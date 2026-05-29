@@ -177,7 +177,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
           <ConfidenceBar value={conf} showLabel={false} size="md" />
           <div className="text-xs text-stone-400 mt-2 flex items-center gap-1.5">
             <Sparkles className="h-3 w-3" />
-            <span className="font-mono">Claude Sonnet 4.5</span>
+            <span className="font-mono">Claude Opus 4.7</span>
             {typeof datos.tiempo_procesamiento_ms === "number" && (
               <>
                 <span>·</span>
