@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import {
   CuposManager,
   type Servicio,
@@ -20,7 +20,7 @@ function semanaISO(d: Date): number {
 }
 
 export default async function CuposPage() {
-  const supabase = createClient();
+  const supabase = createServiceClient();
   const ahora = new Date();
   const año = ahora.getFullYear();
   const semana = semanaISO(ahora);
@@ -69,22 +69,67 @@ export default async function CuposPage() {
     (cuposMap[c.obra_social_id] ??= {})[c.servicio] = c.cantidad_semanal ?? 0;
   });
 
-  // 4) Ocupación de la semana: turnos activos por OS × servicio
-  const { data: turnosData } = await supabase
-    .from("turnos")
-    .select("obra_social_id, estado, fecha_hora, practica:practicas(servicio)")
-    .gte("fecha_hora", lunes.toISOString())
-    .lt("fecha_hora", proxLunes.toISOString());
+  // Normalizador (insensible a tildes/mayúsculas) para matchear servicios
+  const norm = (x: string) =>
+    x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+  // Catálogo de servicios: normalizado -> nombre canónico (columna de la matriz)
+  const servicioCanon = new Map<string, string>();
+  servicios.forEach((sv) => servicioCanon.set(norm(sv.nombre), sv.nombre));
+  const resolverServicio = (raw?: string | null): string | null =>
+    raw ? servicioCanon.get(norm(raw)) ?? null : null;
+
+  // Mapas práctica -> servicio (por id y por nombre) para resolver cada ítem del pedido
+  const { data: practicasData } = await supabase
+    .from("practicas")
+    .select("id, nombre, servicio");
+
+  const servicioPorPracticaId = new Map<string, string>();
+  const servicioPorNombre = new Map<string, string>();
+  (practicasData ?? []).forEach((p: any) => {
+    if (!p.servicio) return;
+    if (p.id) servicioPorPracticaId.set(p.id, p.servicio);
+    if (p.nombre) servicioPorNombre.set(norm(p.nombre), p.servicio);
+  });
+
+  // OS no-VIP: nombre normalizado -> id (para pedidos sin obra_social_id)
+  const osIdPorNombre = new Map<string, string>();
+  obrasNoVip.forEach((o) => osIdPorNombre.set(norm(o.nombre), o.id));
+
+  // 4) Ocupación de la semana: SUMA de cantidades pedidas por OS × servicio
+  const { data: pedidosData } = await supabase
+    .from("pedidos_medicos")
+    .select("obra_social_id, obra_social_detectada, estado, extraccion_ia, created_at")
+    .gte("created_at", lunes.toISOString())
+    .lt("created_at", proxLunes.toISOString());
 
   const usadosMap: Record<string, Record<string, number>> = {};
-  (turnosData ?? []).forEach((t) => {
-    if (!t.obra_social_id) return;
-    if (t.estado === "cancelado" || t.estado === "no_asistio") return;
-    const pr = Array.isArray(t.practica) ? t.practica[0] : t.practica;
-    const servicio = pr?.servicio;
-    if (!servicio) return;
-    (usadosMap[t.obra_social_id] ??= {})[servicio] =
-      ((usadosMap[t.obra_social_id] ??= {})[servicio] ?? 0) + 1;
+  (pedidosData ?? []).forEach((ped: any) => {
+    if (ped.estado === "cancelado" || ped.estado === "error") return;
+    const osId: string | null =
+      ped.obra_social_id ??
+      (ped.obra_social_detectada
+        ? osIdPorNombre.get(norm(ped.obra_social_detectada)) ?? null
+        : null);
+    if (!osId) return;
+    const arr = ped.extraccion_ia?.practicas_array;
+    if (!Array.isArray(arr)) return;
+    arr.forEach((it: any) => {
+      const nombre = typeof it === "string" ? it : it?.nombre;
+      const cantidad =
+        typeof it === "string"
+          ? 1
+          : Math.max(1, Math.round(Number(it?.cantidad) || 1));
+      const practicaId = typeof it === "string" ? null : it?.practica_id;
+      const rawServicio =
+        (practicaId && servicioPorPracticaId.get(practicaId)) ||
+        (nombre && servicioPorNombre.get(norm(nombre))) ||
+        null;
+      const servicio = resolverServicio(rawServicio);
+      if (!servicio) return;
+      (usadosMap[osId] ??= {})[servicio] =
+        ((usadosMap[osId] ??= {})[servicio] ?? 0) + cantidad;
+    });
   });
 
   return (
