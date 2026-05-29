@@ -60,16 +60,17 @@ export default async function ObrasSocialesPage() {
             {vips.map((os) => (
               <div
                 key={os.id}
-                className="p-4 rounded-md bg-gradient-to-br from-pyralis-glowSoft to-white border border-pyralis-glow/30"
+                className="group relative overflow-hidden p-4 rounded-lg bg-gradient-to-br from-pyralis-glow/[0.08] to-stone-900/40 border border-pyralis-glow/25 transition-all hover:border-pyralis-glow/50 hover:shadow-pyralis-glow"
               >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold">{os.nombre}</h3>
-                  <Badge variant="vip">P{os.prioridad}</Badge>
+                <span className="absolute left-0 top-0 h-full w-1 bg-pyralis-glow/70" />
+                <div className="flex justify-between items-start gap-2 mb-2 pl-1.5">
+                  <h3 className="font-semibold text-stone-100 leading-snug">{os.nombre}</h3>
+                  <Badge variant="vip" className="shrink-0">P{os.prioridad}</Badge>
                 </div>
-                <p className="text-caption text-stone-400 uppercase">
+                <p className="text-caption font-medium uppercase tracking-wide text-pyralis-glow/90 pl-1.5">
                   SLA {os.tiempo_maximo_horas}hs
                 </p>
-                <p className="text-caption text-stone-400 mt-1">
+                <p className="text-caption text-stone-400 mt-1 pl-1.5">
                   {conteoPacientes[os.id] ?? 0} pacientes activos
                 </p>
               </div>
