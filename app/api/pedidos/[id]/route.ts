@@ -15,7 +15,7 @@ import { getServerUser } from "@/lib/auth/server-session";
 interface UpdatePayload {
   practica_detectada?: string;
   /** Lista completa de prácticas (1+). Si no viene, se usa solo practica_detectada. */
-  practicas_array?: Array<{ nombre: string; codigo_nomenclador?: string | null }>;
+  practicas_array?: Array<{ nombre: string; cantidad?: number; codigo_nomenclador?: string | null }>;
   obra_social_detectada?: string;
   medico_solicitante?: string;
   matricula_medico?: string;
@@ -80,6 +80,7 @@ export async function PATCH(
   // Si vinieron múltiples prácticas, matchear cada una al catálogo
   const practicasArrayResult: Array<{
     nombre: string;
+    cantidad: number;
     codigo_nomenclador: string | null;
     confianza: number;
     practica_id: string | null;
@@ -98,6 +99,7 @@ export async function PATCH(
       if (practica) matchId = practica.id;
       practicasArrayResult.push({
         nombre,
+        cantidad: Math.max(1, Math.round(Number(p.cantidad) || 1)),
         codigo_nomenclador: p.codigo_nomenclador ?? null,
         confianza: 1.0, // Editado por humano = 100%
         practica_id: matchId,

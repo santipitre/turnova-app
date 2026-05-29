@@ -156,6 +156,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
           pedidoId={params.id}
           initial={{
             practicas_array: extraerPracticasArray(datos, pedido.practica_detectada),
+            cantidades_array: extraerCantidadesArray(datos, pedido.practica_detectada),
             obra_social_detectada: pedido.obra_social_detectada ?? "",
             medico_solicitante: (datos.medico_solicitante as string | null) ?? "",
             matricula_medico: (datos.matricula_medico as string | null) ?? "",
@@ -189,4 +190,30 @@ function extraerPracticasArray(
   }
   // Fallback: solo la práctica principal
   return [practicaDetectada ?? ""];
+}
+
+/**
+ * Extrae las cantidades por práctica, alineadas al array de prácticas.
+ * Si no hay dato guardado, devuelve 1 por práctica.
+ */
+function extraerCantidadesArray(
+  datos: Record<string, unknown>,
+  practicaDetectada: string | null,
+): number[] {
+  const arr = datos.practicas_array;
+  if (Array.isArray(arr) && arr.length > 0) {
+    const items = arr.filter(
+      (p: any) =>
+        typeof p === "string"
+          ? p.trim().length > 0
+          : typeof p?.nombre === "string" && p.nombre.trim().length > 0,
+    );
+    if (items.length > 0) {
+      return items.map((p: any) => {
+        const c = typeof p === "string" ? 1 : Number(p?.cantidad);
+        return Number.isFinite(c) && c > 0 ? Math.round(c) : 1;
+      });
+    }
+  }
+  return [practicaDetectada ? 1 : 1];
 }

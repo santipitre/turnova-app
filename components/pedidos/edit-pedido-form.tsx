@@ -26,6 +26,8 @@ import { Input } from "@/components/ui/input";
 interface InitialData {
   /** Array de prácticas. La primera es la principal. */
   practicas_array: string[];
+  /** Cantidad de estudios por práctica, alineada por índice con practicas_array. */
+  cantidades_array: number[];
   obra_social_detectada: string;
   medico_solicitante: string;
   matricula_medico: string;
@@ -59,18 +61,32 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
     });
   }
 
+  function updateCantidad(index: number, value: number) {
+    setForm((prev) => {
+      const next = [...prev.cantidades_array];
+      next[index] = Number.isFinite(value) && value > 0 ? Math.round(value) : 1;
+      return { ...prev, cantidades_array: next };
+    });
+  }
+
   function addPractica() {
     setForm((prev) => ({
       ...prev,
       practicas_array: [...prev.practicas_array, ""],
+      cantidades_array: [...prev.cantidades_array, 1],
     }));
   }
 
   function removePractica(index: number) {
     setForm((prev) => {
       const next = prev.practicas_array.filter((_, i) => i !== index);
+      const nextCant = prev.cantidades_array.filter((_, i) => i !== index);
       // Siempre tener al menos un input visible (vacío)
-      return { ...prev, practicas_array: next.length > 0 ? next : [""] };
+      return {
+        ...prev,
+        practicas_array: next.length > 0 ? next : [""],
+        cantidades_array: nextCant.length > 0 ? nextCant : [1],
+      };
     });
   }
 
@@ -78,17 +94,20 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
     e.preventDefault();
     setLoading(true);
     try {
-      // Construir payload con campo legacy + array
-      const practicasLimpias = form.practicas_array
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+      // Emparejar nombre + cantidad por índice, luego descartar vacíos
+      const items = form.practicas_array
+        .map((nombre, i) => ({
+          nombre: nombre.trim(),
+          cantidad: Math.max(1, Math.round(Number(form.cantidades_array[i]) || 1)),
+        }))
+        .filter((it) => it.nombre.length > 0);
 
       const payload = {
         ...form,
         // Campo legacy: primera práctica (para compat con código viejo)
-        practica_detectada: practicasLimpias[0] ?? "",
-        // Array completo
-        practicas_array: practicasLimpias.map((nombre) => ({ nombre })),
+        practica_detectada: items[0]?.nombre ?? "",
+        // Array completo con cantidades
+        practicas_array: items,
       };
 
       const res = await fetch(`/api/pedidos/${pedidoId}`, {
@@ -144,6 +163,18 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
             <div className="space-y-2">
               {form.practicas_array.map((practica, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    <span className="text-stone-500 text-sm font-medium select-none">x</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.cantidades_array[idx] ?? 1}
+                      onChange={(e) => updateCantidad(idx, Number(e.target.value))}
+                      className="w-14 text-center font-semibold"
+                      title="Cantidad de estudios"
+                      aria-label="Cantidad de estudios"
+                    />
+                  </div>
                   <div className="flex-1 relative">
                     <Input
                       list="practicas-list"

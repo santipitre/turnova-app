@@ -264,7 +264,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
             <CardContent className="space-y-1 p-0">
               {/* Múltiples prácticas (si hay array) o única (compat) */}
               <PracticasField
-                practicasArray={datos.practicas_array as Array<{ nombre: string; codigo_nomenclador?: string | null }> | null}
+                practicasArray={datos.practicas_array as Array<{ nombre: string; cantidad?: number; codigo_nomenclador?: string | null }> | null}
                 practicaSingle={pedido.practica_detectada}
                 confianza={confianzaPorCampo?.practica_solicitada}
               />
@@ -413,7 +413,7 @@ function PracticasField({
   practicaSingle,
   confianza,
 }: {
-  practicasArray: Array<{ nombre: string; codigo_nomenclador?: string | null }> | null;
+  practicasArray: Array<{ nombre: string; cantidad?: number; codigo_nomenclador?: string | null }> | null;
   practicaSingle: string | null;
   confianza?: number;
 }) {
@@ -422,7 +422,7 @@ function PracticasField({
     practicasArray && practicasArray.length > 0
       ? practicasArray
       : practicaSingle
-        ? [{ nombre: practicaSingle, codigo_nomenclador: null as string | null }]
+        ? [{ nombre: practicaSingle, cantidad: 1, codigo_nomenclador: null as string | null }]
         : [];
 
   const hayValor = lista.length > 0;
@@ -473,6 +473,11 @@ function PracticasField({
                 {multiple && (
                   <span className="font-mono text-xs text-stone-500 flex-shrink-0">
                     {idx + 1}.
+                  </span>
+                )}
+                {p.cantidad && p.cantidad > 1 && (
+                  <span className="text-[11px] font-bold text-pyralis-glow bg-pyralis-glow/15 border border-pyralis-glow/30 px-1.5 py-0.5 rounded flex-shrink-0">
+                    x{p.cantidad}
                   </span>
                 )}
                 <div className="text-stone-100 font-semibold text-base">{p.nombre}</div>
