@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CentroMedicoForm } from "@/components/configuracion/centro-medico-form";
+import { IntegracionClaude } from "@/components/configuracion/integracion-claude";
 import { Separator } from "@/components/ui/separator";
 import { Building2, Users, Settings, Plug, CreditCard } from "lucide-react";
 
@@ -150,11 +151,7 @@ export default async function ConfiguracionPage() {
             estado="conectar"
           />
           <Separator />
-          <IntegracionRow
-            nombre="Anthropic Claude API"
-            descripcion="Motor IA de extracción de pedidos médicos"
-            estado="conectado"
-          />
+          <IntegracionClaude model="claude-opus-4-7" connected={!!process.env.ANTHROPIC_API_KEY} />
           <Separator />
           <IntegracionRow
             nombre="Visual Medica"
