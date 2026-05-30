@@ -111,6 +111,10 @@ export default async function DashboardPage() {
     .order("cupos_asignados", { ascending: false });
 
   const cupoCritico = cuposCriticos?.[0];
+  const pickNombre = (v: unknown): string | null => {
+    const o = Array.isArray(v) ? v[0] : v;
+    return (o as { nombre?: string } | null)?.nombre ?? null;
+  };
   const porcentajeCupoCritico = cupoCritico
     ? (cupoCritico.cupos_asignados / cupoCritico.cupos_totales) * 100
     : 0;
@@ -333,8 +337,8 @@ export default async function DashboardPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-stone-900">Cupo crítico esta semana</h3>
               <p className="text-sm text-stone-600 mt-0.5">
-                {(cupoCritico.obras_sociales as { nombre: string } | null)?.nombre} ·{" "}
-                {(cupoCritico.practicas as { nombre: string } | null)?.nombre}{" "}
+                {pickNombre(cupoCritico.obras_sociales)} ·{" "}
+                {pickNombre(cupoCritico.practicas)}{" "}
                 está al{" "}
                 <span className="font-mono font-semibold text-lumen-ember">
                   {porcentajeCupoCritico.toFixed(0)}%

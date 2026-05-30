@@ -14,6 +14,7 @@ const buttonVariants = cva(
         ghost: "text-stone-300 hover:bg-white/5 hover:text-stone-100",
         destructive: "bg-lumen-flag text-white hover:bg-red-500 shadow-lumen-1-dark",
         link: "text-lumen-glow underline-offset-4 hover:underline",
+        outline: "border border-stone-700 text-stone-200 hover:bg-white/5 hover:border-stone-600",
       },
       size: {
         default: "h-9 px-4 py-2",

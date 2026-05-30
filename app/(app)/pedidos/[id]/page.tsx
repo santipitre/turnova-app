@@ -339,7 +339,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                 mono
                 confianza={confianzaPorCampo?.numero_afiliado}
               />
-              {datos.fecha_pedido && (
+              {Boolean(datos.fecha_pedido) && (
                 <DataField
                   icon={Calendar}
                   label="Fecha del pedido"
