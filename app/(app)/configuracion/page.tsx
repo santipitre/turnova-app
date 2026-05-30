@@ -3,8 +3,7 @@ import { getServerUser } from "@/lib/auth/server-session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CentroMedicoForm } from "@/components/configuracion/centro-medico-form";
 import { Separator } from "@/components/ui/separator";
 import { Building2, Users, Settings, Plug, CreditCard } from "lucide-react";
 
@@ -56,29 +55,15 @@ export default async function ConfiguracionPage() {
           </CardTitle>
           <CardDescription>Datos generales del centro y plan contratado.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="centro">Nombre del centro</Label>
-              <Input id="centro" defaultValue={tenant?.nombre_centro ?? ""} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cuit">CUIT</Label>
-              <Input id="cuit" defaultValue={tenant?.cuit ?? ""} placeholder="30-12345678-9" />
-            </div>
-            <div className="space-y-1">
-              <Label>Plan actual</Label>
-              <div className="flex items-center gap-2">
-                <Badge variant="vip">⭐ {tenant?.plan ?? "starter"}</Badge>
-                <Button variant="link" size="sm">Actualizar plan</Button>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="tz">Zona horaria</Label>
-              <Input id="tz" defaultValue={tenant?.timezone ?? "America/Argentina/Buenos_Aires"} />
-            </div>
-          </div>
-          <Button variant="glow" className="mt-2">Guardar cambios</Button>
+        <CardContent>
+          <CentroMedicoForm
+            initial={{
+              nombre_centro: tenant?.nombre_centro ?? "",
+              cuit: tenant?.cuit ?? "",
+              timezone: tenant?.timezone ?? "America/Argentina/Buenos_Aires",
+              plan: tenant?.plan ?? "starter",
+            }}
+          />
         </CardContent>
       </Card>
 
