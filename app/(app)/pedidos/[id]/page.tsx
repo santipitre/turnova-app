@@ -85,6 +85,11 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
   // v3 (2026-05-28): confianza por campo + razonamiento + especialidad inferida
   const confianzaPorCampo = (datos.confianza_por_campo as Record<string, number> | null) || null;
   const especialidadInferida = (datos.especialidad_inferida as string | null) || null;
+  const medicoMatch =
+    (datos.medico_match as { nombre: string; matricula: string | null; similitud: number } | null) ||
+    null;
+  const medicoNoCatalogado = (datos.medico_no_catalogado as boolean | undefined) ?? false;
+  const medicoLeidoIA = (datos.medico_leido_ia as string | null) || null;
   const razonamientoIA = (datos.razonamiento as string | null) || null;
 
   // Trigger del banner de revisión: confianza < 80% global O cualquier campo < 60%
@@ -291,6 +296,36 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                 mono
                 confianza={confianzaPorCampo?.matricula_medico}
               />
+
+              {(medicoMatch || medicoNoCatalogado) && (
+                <div className="px-4 pb-3 -mt-1">
+                  {medicoMatch ? (
+                    <div className="flex items-start gap-2 rounded-md border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5 text-[11px] text-emerald-300/90">
+                      <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Resuelto del catálogo:{" "}
+                        <strong className="text-emerald-200">{medicoMatch.nombre}</strong>
+                        {medicoMatch.matricula ? ` · MAT ${medicoMatch.matricula}` : ""}{" "}
+                        <span className="text-emerald-400/70">
+                          ({Math.round((medicoMatch.similitud ?? 0) * 100)}%)
+                        </span>
+                        {medicoLeidoIA &&
+                          medicoLeidoIA.toUpperCase() !== medicoMatch.nombre.toUpperCase() && (
+                            <span className="text-stone-400"> · leído: “{medicoLeidoIA}”</span>
+                          )}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-400/25 bg-amber-400/[0.07] px-2.5 py-1.5 text-[11px] text-amber-300/90">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Derivante no está en el catálogo. Revisá y guardá para agregarlo
+                        automáticamente.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
               <DataField
                 icon={FileText}
                 label="Diagnóstico presunto"
