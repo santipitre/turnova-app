@@ -8,7 +8,6 @@ import {
   Save,
   Stethoscope,
   Shield,
-  User,
   IdCard,
   FileText,
   Calendar,
@@ -23,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { MedicoAutocomplete } from "@/components/pedidos/medico-autocomplete";
 
 interface InitialData {
   /** Array de prácticas. La primera es la principal. */
@@ -274,34 +274,19 @@ export function EditPedidoForm({ pedidoId, initial, obrasSociales, practicas }: 
             </datalist>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="medico" className="flex items-center gap-2 text-stone-200">
-                <User className="h-3.5 w-3.5 text-stone-400" />
-                Médico solicitante
-              </Label>
-              <Input
-                id="medico"
-                value={form.medico_solicitante}
-                onChange={(e) => update("medico_solicitante", e.target.value)}
-                placeholder="Dr. Apellido"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="matricula" className="flex items-center gap-2 text-stone-200">
-                <IdCard className="h-3.5 w-3.5 text-stone-400" />
-                Matrícula
-              </Label>
-              <Input
-                id="matricula"
-                value={form.matricula_medico}
-                onChange={(e) => update("matricula_medico", e.target.value)}
-                placeholder="Mat: 12345"
-                className="font-mono"
-              />
-            </div>
-          </div>
+          <MedicoAutocomplete
+            nombre={form.medico_solicitante}
+            matricula={form.matricula_medico}
+            onNombre={(v) => update("medico_solicitante", v)}
+            onMatricula={(v) => update("matricula_medico", v)}
+            onPick={(nombre, matricula) =>
+              setForm((prev) => ({
+                ...prev,
+                medico_solicitante: nombre,
+                matricula_medico: matricula,
+              }))
+            }
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="dx" className="flex items-center gap-2 text-stone-200">

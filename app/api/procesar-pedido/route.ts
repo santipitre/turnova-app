@@ -195,6 +195,49 @@ export async function POST(request: Request) {
   const tiempoIA = Date.now() - inicioIA;
 
   // ---------------------------------------------------------------
+  // 4.b Matchear el médico derivante contra el catálogo (medicos_solicitantes)
+  //     Prioridad: matrícula exacta (1.0) > similitud de nombre (pg_trgm).
+  //     Auto-elige la mejor opción y la marca para revisión salvo match exacto.
+  // ---------------------------------------------------------------
+  let medicoCanonNombre: string | null = datos.medico_solicitante ?? null;
+  let medicoCanonMatricula: string | null = datos.matricula_medico ?? null;
+  let medicoMatch: {
+    id: string;
+    nombre: string;
+    matricula: string | null;
+    similitud: number;
+  } | null = null;
+  let medicoNoCatalogado = false;
+
+  if (datos.medico_solicitante || datos.matricula_medico) {
+    try {
+      const { data: matches } = await admin.rpc("buscar_medico_similar", {
+        p_tenant_id: profile.tenant_id,
+        p_nombre: datos.medico_solicitante ?? null,
+        p_matricula: datos.matricula_medico ?? null,
+        p_threshold: 0.4,
+      });
+      const best = Array.isArray(matches) && matches.length > 0 ? matches[0] : null;
+      if (best) {
+        medicoMatch = {
+          id: best.id,
+          nombre: best.nombre,
+          matricula: best.matricula ?? null,
+          similitud: Number(best.similitud) || 0,
+        };
+        // Adoptar la identidad canónica del catálogo
+        medicoCanonNombre = best.nombre;
+        if (best.matricula) medicoCanonMatricula = best.matricula;
+      } else if (datos.medico_solicitante) {
+        // La IA leyó un derivante que no está en el catálogo: queda para revisión
+        medicoNoCatalogado = true;
+      }
+    } catch (e) {
+      console.warn("[procesar] match de médico falló:", e);
+    }
+  }
+
+  // ---------------------------------------------------------------
   // 5. Matching contra BD
 
   let obraSocialId: string | null = null;
@@ -250,8 +293,15 @@ export async function POST(request: Request) {
   // 5. Decidir si requiere revisión manual
   // ---------------------------------------------------------------
   const UMBRAL_CONFIANZA = 0.85;
+  // Match de médico dudoso: hay match pero no por matrícula exacta y similitud < 0.6
+  const medicoMatchDudoso =
+    !!medicoMatch && medicoMatch.similitud < 0.6;
   const requiereRevision =
-    datos.confianza < UMBRAL_CONFIANZA || !obraSocialId || !practicaId;
+    datos.confianza < UMBRAL_CONFIANZA ||
+    !obraSocialId ||
+    !practicaId ||
+    medicoNoCatalogado ||
+    medicoMatchDudoso;
 
   // ---------------------------------------------------------------
   // 6. Guardar pedido_medico (schema turnova.pedidos_medicos)
@@ -262,8 +312,8 @@ export async function POST(request: Request) {
     archivo_url: archivoUrl, // URL firmada con expiración 24hs
     archivo_storage_path: archivoStoragePath,
     canal_origen: body.canal_origen ?? "web",
-    medico_solicitante: datos.medico_solicitante ?? null,
-    matricula: datos.matricula_medico ?? null,
+    medico_solicitante: medicoCanonNombre,
+    matricula: medicoCanonMatricula,
     practica_detectada: datos.practica_solicitada ?? null,
     practica_id: practicaId,
     obra_social_detectada: datos.obra_social ?? null,
@@ -277,6 +327,12 @@ export async function POST(request: Request) {
       obra_social_id_matched: obraSocialId,
       // Array de TODAS las prácticas detectadas (1+) con su match al catálogo
       practicas_array: practicasArray,
+      // Médico derivante resuelto contra el catálogo
+      medico_match: medicoMatch,
+      medico_no_catalogado: medicoNoCatalogado,
+      // Lo que leyó la IA antes de canonizar (para auditoría)
+      medico_leido_ia: datos.medico_solicitante ?? null,
+      matricula_leida_ia: datos.matricula_medico ?? null,
       requiere_revision_manual: requiereRevision,
       tiempo_procesamiento_ms: tiempoIA,
     },
