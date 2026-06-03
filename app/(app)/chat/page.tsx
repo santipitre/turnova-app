@@ -34,43 +34,42 @@ function buildRespuestas(result: any): string[] {
   const aut = matching.autorizacion ?? ex.autorizacion ?? null;
 
   const out: string[] = [];
-  if (ex.medico_no_catalogado) {
-    out.push(`👨‍⚕️ Leí al Dr./Dra. *${medicoNombre || "—"}*${matricula ? ` (Mat. ${matricula})` : ""}, pero no figura en nuestra base. Un agente lo va a verificar.`);
-  } else if (ex.medico_match?.nombre) {
-    out.push(`👨‍⚕️ Médico solicitante: *${ex.medico_match.nombre}*${ex.medico_match.matricula ? ` (Mat. ${ex.medico_match.matricula})` : ""}.`);
-  } else if (medicoNombre) {
-    out.push(`👨‍⚕️ Médico solicitante: *${medicoNombre}*${matricula ? ` (Mat. ${matricula})` : ""}.`);
-  }
 
-  out.push(`📄 Estudio: *${estudio}*\n🏥 Obra social: *${obra}*`);
-  if (!matching.obra_social_id) out.push("⚠️ No pude identificar con certeza tu *obra social*. Un agente lo confirma.");
-  if (!matching.practica_id) out.push("⚠️ No pude identificar con certeza el *estudio* pedido. Un agente lo confirma.");
+  // Identificación consolidada — ORDEN: obra social → estudio → médico
+  const medico = ex.medico_match?.nombre || medicoNombre;
+  const mat = ex.medico_match?.matricula || matricula;
+  let ident = "Recibí tu pedido ✅";
+  ident += `\n🏥 Obra social: *${obra}*`;
+  ident += `\n📄 Estudio: *${estudio}*`;
+  if (medico) ident += `\n👨‍⚕️ Médico: *${medico}*${mat ? ` (Mat. ${mat})` : ""}`;
+  out.push(ident);
 
+  // Autorización — directo a la acción
   if (aut && matching.obra_social_id && matching.practica_id) {
     const reglaTxt = REGLA_TXT[aut.regla] || REGLA_TXT.A_CONFIRMAR;
     if (aut.requiere) {
-      let m = `🔐 Este estudio *${reglaTxt}*.`;
-      if (aut.vigencia_dias) m += `\n🗓️ La orden tiene una validez de *${aut.vigencia_dias} días*.`;
+      let m = `🔐 *${estudio}* con *${obra}* ${reglaTxt}.`;
+      if (aut.vigencia_dias) m += `\n🗓️ Validez de la orden: *${aut.vigencia_dias} días*.`;
       if (aut.tope_anual && aut.tope_anual !== "-") m += `\n📌 Tope: ${aut.tope_anual}.`;
-      m += `\n📎 Presentá: *orden médica original* + la *autorización de la obra social*.`;
+      m += `\n📎 Llevá: *orden médica original* + la *autorización de la obra social*.`;
       if (aut.requisitos) m += `\nℹ️ ${aut.requisitos}`;
       out.push(m);
-      out.push("Cuando tengas la autorización, escribime y coordinamos el turno. 🙌");
+      out.push("Apenas tengas la autorización, escribime y coordinamos el turno. 🙌");
     } else if (aut.regla === "NO_DIRECTO") {
-      out.push("✅ Al ser *atención particular*, no se gestiona autorización. Coordinamos el turno directamente. 🗓️");
+      out.push("✅ Es *atención particular*: no se gestiona autorización. Coordinamos el turno directamente. 🗓️");
     } else {
-      let m = "✅ Buenas noticias: este estudio *no requiere autorización previa*.";
+      let m = `✅ *${estudio}* con *${obra}* *no requiere autorización*.`;
       if (aut.requisitos) m += `\nℹ️ ${aut.requisitos}`;
       m += "\nCoordinamos el turno directamente. 🗓️";
       out.push(m);
     }
+  } else if (matching.obra_social_id) {
+    // Estudio leído pero aún sin regla resuelta: acción, no duda
+    out.push(`Estoy verificando la cobertura de *${estudio}* con *${obra}* y te confirmo la autorización en instantes. 🗓️`);
   } else {
-    out.push("Para decirte si necesitás autorización, primero confirmamos la obra social y el estudio. 🙏");
+    out.push(`Estoy validando tu cobertura de *${obra}* para darte la info de autorización. 🗓️`);
   }
 
-  if (ex.requiere_revision_manual || conf < 0.85) {
-    out.push("📝 Un agente de FUESMEN va a revisar tu pedido para confirmar todos los datos.");
-  }
   return out;
 }
 
