@@ -44,8 +44,8 @@ function buildRespuestas(result: any): string[] {
   if (medico) ident += `\n👨‍⚕️ Médico: *${medico}*${mat ? ` (Mat. ${mat})` : ""}`;
   out.push(ident);
 
-  // Autorización — directo a la acción
-  if (aut && matching.obra_social_id && matching.practica_id) {
+  // Autorización — directo a la acción (sirve también si vino por grupo inferido)
+  if (aut && matching.obra_social_id && aut.requiere !== null && aut.requiere !== undefined) {
     const reglaTxt = REGLA_TXT[aut.regla] || REGLA_TXT.A_CONFIRMAR;
     if (aut.requiere) {
       let m = `🔐 *${estudio}* con *${obra}* ${reglaTxt}.`;

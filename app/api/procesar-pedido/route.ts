@@ -317,6 +317,22 @@ export async function POST(request: Request) {
     }
   }
 
+  // Fallback: si el estudio no matcheó al catálogo (practica_id null) pero sí la obra social,
+  // inferimos el GRUPO desde el texto leído y resolvemos la autorización por la matriz.
+  if (!autorizacion && obraSocialId && datos.practica_solicitada) {
+    try {
+      const { data: aut2, error: e2 } = await admin.rpc("requiere_autorizacion_texto", {
+        p_tenant_id: profile.tenant_id,
+        p_obra_social_id: obraSocialId,
+        p_texto: datos.practica_solicitada,
+      });
+      if (e2) console.warn("[procesar] requiere_autorizacion_texto:", e2.message);
+      else if (aut2) autorizacion = aut2;
+    } catch (e) {
+      console.warn("[procesar] excepción autorización_texto (no bloqueante):", e);
+    }
+  }
+
   // ---------------------------------------------------------------
   // 5. Decidir si requiere revisión manual
   // ---------------------------------------------------------------
