@@ -290,9 +290,40 @@ export async function POST(request: Request) {
   }
 
   // ---------------------------------------------------------------
+  // 4.c Autorización — ¿esta práctica requiere autorización previa
+  //     para esta obra social? (matriz por grupo de estudio, migración 003)
+  // ---------------------------------------------------------------
+  let autorizacion: {
+    requiere: boolean;
+    regla: string;
+    grupo: string | null;
+    tope_anual: string | null;
+    vigencia_dias: number;
+    requisitos: string | null;
+    estado_dato: string;
+    fuente: string;
+  } | null = null;
+  if (obraSocialId && practicaId) {
+    try {
+      const { data: aut, error: autErr } = await admin.rpc("requiere_autorizacion", {
+        p_tenant_id: profile.tenant_id,
+        p_obra_social_id: obraSocialId,
+        p_practica_id: practicaId,
+      });
+      if (autErr) console.warn("[procesar] requiere_autorizacion:", autErr.message);
+      else autorizacion = aut ?? null;
+    } catch (e) {
+      console.warn("[procesar] excepción autorización (no bloqueante):", e);
+    }
+  }
+
+  // ---------------------------------------------------------------
   // 5. Decidir si requiere revisión manual
   // ---------------------------------------------------------------
   const UMBRAL_CONFIANZA = 0.85;
+  // Autorización sin regla definida (A_CONFIRMAR) → conviene revisión manual
+  const autorizacionSinRegla =
+    !!autorizacion && (autorizacion.regla === "A_CONFIRMAR" || autorizacion.fuente === "sin_regla");
   // Match de médico dudoso: hay match pero no por matrícula exacta y similitud < 0.6
   const medicoMatchDudoso =
     !!medicoMatch && medicoMatch.similitud < 0.6;
@@ -301,7 +332,8 @@ export async function POST(request: Request) {
     !obraSocialId ||
     !practicaId ||
     medicoNoCatalogado ||
-    medicoMatchDudoso;
+    medicoMatchDudoso ||
+    autorizacionSinRegla;
 
   // ---------------------------------------------------------------
   // 6. Guardar pedido_medico (schema turnova.pedidos_medicos)
@@ -333,6 +365,8 @@ export async function POST(request: Request) {
       // Lo que leyó la IA antes de canonizar (para auditoría)
       medico_leido_ia: datos.medico_solicitante ?? null,
       matricula_leida_ia: datos.matricula_medico ?? null,
+      // Autorización previa según matriz (obra social × grupo de estudio)
+      autorizacion,
       requiere_revision_manual: requiereRevision,
       tiempo_procesamiento_ms: tiempoIA,
     },
@@ -376,6 +410,7 @@ export async function POST(request: Request) {
       obra_social_id: obraSocialId,
       practica_id: practicaId,
       requiere_revision_manual: requiereRevision,
+      autorizacion,
     },
     metrica: {
       confianza: datos.confianza,

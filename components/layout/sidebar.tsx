@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Settings,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 
 import { TurnovaLockup } from "@/components/brand/turnova-lockup";
@@ -32,6 +33,7 @@ const navMain: NavItem[] = [
 
 const navConfig: NavItem[] = [
   { label: "Obras Sociales", href: "/obras-sociales", icon: Shield },
+  { label: "Autorizaciones", href: "/autorizaciones", icon: ShieldCheck },
   { label: "Cupos Semanales", href: "/cupos", icon: LayoutGrid },
   { label: "Configuración", href: "/configuracion", icon: Settings },
 ];
