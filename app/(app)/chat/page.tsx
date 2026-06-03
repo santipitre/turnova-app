@@ -34,40 +34,58 @@ function buildRespuestas(result: any): string[] {
   const aut = matching.autorizacion ?? ex.autorizacion ?? null;
 
   const out: string[] = [];
-
-  // Identificación consolidada — ORDEN: obra social → estudio → médico
   const medico = ex.medico_match?.nombre || medicoNombre;
   const mat = ex.medico_match?.matricula || matricula;
+
+  // Soporta varios estudios en un mismo pedido
+  const arr: any[] = (Array.isArray(ex.practicas_array) && ex.practicas_array.length)
+    ? ex.practicas_array
+    : [{ nombre: estudio, autorizacion: aut }];
+  const nombres: string[] = arr.map((p) => p.nombre).filter(Boolean);
+
+  // Identificación — orden: obra social, estudio(s), médico
   let ident = "Recibí tu pedido ✅";
   ident += `\n🏥 Obra social: *${obra}*`;
-  ident += `\n📄 Estudio: *${estudio}*`;
+  ident += `\n📄 Estudio${nombres.length > 1 ? "s" : ""}: ${nombres.map((n) => `*${n}*`).join(", ")}`;
   if (medico) ident += `\n👨‍⚕️ Médico: *${medico}*${mat ? ` (Mat. ${mat})` : ""}`;
   out.push(ident);
 
-  // Autorización — directo a la acción (sirve también si vino por grupo inferido)
-  if (aut && matching.obra_social_id && aut.requiere !== null && aut.requiere !== undefined) {
-    const reglaTxt = REGLA_TXT[aut.regla] || REGLA_TXT.A_CONFIRMAR;
-    if (aut.requiere) {
-      let m = `🔐 *${estudio}* con *${obra}* ${reglaTxt}.`;
-      if (aut.vigencia_dias) m += `\n🗓️ Validez de la orden: *${aut.vigencia_dias} días*.`;
-      if (aut.tope_anual && aut.tope_anual !== "-") m += `\n📌 Tope: ${aut.tope_anual}.`;
-      m += `\n📎 Llevá: *orden médica original* + la *autorización de la obra social*.`;
-      if (aut.requisitos) m += `\nℹ️ ${aut.requisitos}`;
-      out.push(m);
-      out.push("Apenas tengas la autorización, escribime y coordinamos el turno. 🙌");
-    } else if (aut.regla === "NO_DIRECTO") {
-      out.push("✅ Es *atención particular*: no se gestiona autorización. Coordinamos el turno directamente. 🗓️");
-    } else {
-      let m = `✅ *${estudio}* con *${obra}* *no requiere autorización*.`;
-      if (aut.requisitos) m += `\nℹ️ ${aut.requisitos}`;
-      m += "\nCoordinamos el turno directamente. 🗓️";
-      out.push(m);
-    }
-  } else if (matching.obra_social_id) {
-    // Estudio leído pero aún sin regla resuelta: acción, no duda
-    out.push(`Estoy verificando la cobertura de *${estudio}* con *${obra}* y te confirmo la autorización en instantes. 🗓️`);
-  } else {
+  if (!matching.obra_social_id) {
     out.push(`Estoy validando tu cobertura de *${obra}* para darte la info de autorización. 🗓️`);
+    return out;
+  }
+
+  // Autorización por cada estudio
+  let algunoRequiere = false;
+  let sinResolver = 0;
+  const lineas: string[] = [];
+  for (const p of arr) {
+    const a = p.autorizacion ?? (arr.length === 1 ? aut : null);
+    if (a && a.requiere !== null && a.requiere !== undefined) {
+      if (a.requiere) {
+        algunoRequiere = true;
+        const reglaTxt = REGLA_TXT[a.regla] || REGLA_TXT.A_CONFIRMAR;
+        let l = `🔐 *${p.nombre}*: ${reglaTxt}`;
+        if (a.vigencia_dias) l += ` (validez ${a.vigencia_dias} días)`;
+        l += ".";
+        if (a.requisitos) l += ` ℹ️ ${a.requisitos}`;
+        lineas.push(l);
+      } else if (a.regla === "NO_DIRECTO") {
+        lineas.push(`✅ *${p.nombre}*: atención particular, sin autorización.`);
+      } else {
+        lineas.push(`✅ *${p.nombre}*: no requiere autorización.`);
+      }
+    } else {
+      sinResolver++;
+      lineas.push(`🔎 *${p.nombre}*: verificando cobertura...`);
+    }
+  }
+  out.push(lineas.join("\n"));
+
+  if (algunoRequiere) {
+    out.push("📎 Para los estudios que requieren autorización, llevá la *orden médica original* + la *autorización de la obra social*. Apenas la tengas, coordinamos el turno. 🙌");
+  } else if (sinResolver === 0) {
+    out.push("Podemos coordinar el turno directamente. 🗓️");
   }
 
   return out;

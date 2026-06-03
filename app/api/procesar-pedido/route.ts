@@ -333,6 +333,32 @@ export async function POST(request: Request) {
     }
   }
 
+  // Autorización por CADA práctica detectada (pedidos con varios estudios)
+  if (obraSocialId && practicasArray.length > 0) {
+    for (const it of practicasArray) {
+      try {
+        let a: unknown = null;
+        if (it.practica_id) {
+          const { data } = await admin.rpc("requiere_autorizacion", {
+            p_tenant_id: profile.tenant_id, p_obra_social_id: obraSocialId, p_practica_id: it.practica_id,
+          });
+          a = data ?? null;
+        }
+        if (!a && it.nombre) {
+          const { data } = await admin.rpc("requiere_autorizacion_texto", {
+            p_tenant_id: profile.tenant_id, p_obra_social_id: obraSocialId, p_texto: it.nombre,
+          });
+          a = data ?? null;
+        }
+        (it as Record<string, unknown>).autorizacion = a;
+      } catch (e) {
+        console.warn("[procesar] autorización por práctica (no bloqueante):", e);
+      }
+    }
+    // La autorización principal = la de la primera práctica si aún no se resolvió
+    if (!autorizacion) autorizacion = ((practicasArray[0] as Record<string, unknown>).autorizacion as typeof autorizacion) ?? null;
+  }
+
   // ---------------------------------------------------------------
   // 5. Decidir si requiere revisión manual
   // ---------------------------------------------------------------
