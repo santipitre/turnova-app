@@ -4,6 +4,8 @@ import {
   MatrizAutorizacionesManager,
   type ObraSocialLite,
   type CeldaMatriz,
+  type PracticaMini,
+  type OverridePractica,
 } from "@/components/autorizaciones/matriz-manager";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,7 @@ const GRUPOS_DEFAULT = [
   "Ecografía / Doppler",
   "Radiología",
   "Cardiología",
+  "Radioterapia",
   "Consultas / Otros",
 ];
 
@@ -36,28 +39,37 @@ export default async function AutorizacionesPage() {
     .eq("tenant_id", tenantId)
     .order("nombre", { ascending: true });
 
-  // Grupos existentes en el nomenclador del centro (fallback a la lista default)
+  // Grupos existentes en el nomenclador del centro
   const { data: gruposRows } = await supabase
     .from("practicas")
     .select("grupo")
     .eq("tenant_id", tenantId)
     .not("grupo", "is", null);
 
-  const gruposSet = new Set<string>(
+  const dbGrupos = new Set<string>(
     (gruposRows ?? []).map((r: { grupo: string | null }) => r.grupo).filter(Boolean) as string[],
   );
-  const grupos = gruposSet.size > 0 ? Array.from(gruposSet) : GRUPOS_DEFAULT;
-  // Ordenar según el orden canónico cuando coincida
-  grupos.sort(
-    (a, b) =>
-      (GRUPOS_DEFAULT.indexOf(a) === -1 ? 99 : GRUPOS_DEFAULT.indexOf(a)) -
-      (GRUPOS_DEFAULT.indexOf(b) === -1 ? 99 : GRUPOS_DEFAULT.indexOf(b)),
-  );
+  // Siempre mostramos todos los grupos canónicos (en orden), más cualquier extra de la BD.
+  const extra = Array.from(dbGrupos).filter((g) => !GRUPOS_DEFAULT.includes(g));
+  const grupos = [...GRUPOS_DEFAULT, ...extra];
 
-  // Celdas ya cargadas en la matriz
+  // Celdas ya cargadas en la matriz (regla por grupo)
   const { data: celdas } = await supabase
     .from("matriz_autorizaciones")
     .select("obra_social_id, grupo, requiere_autorizacion, estado_dato")
+    .eq("tenant_id", tenantId);
+
+  // Prácticas (para expandir un grupo y ver/editar sus estudios)
+  const { data: practicas } = await supabase
+    .from("practicas")
+    .select("id, nombre, grupo, codigo_nomenclador")
+    .eq("tenant_id", tenantId)
+    .order("nombre", { ascending: true });
+
+  // Excepciones por estudio ya cargadas
+  const { data: overrides } = await supabase
+    .from("autorizaciones_practica")
+    .select("obra_social_id, practica_id, requiere_autorizacion")
     .eq("tenant_id", tenantId);
 
   return (
@@ -75,6 +87,8 @@ export default async function AutorizacionesPage() {
         obras={(obras ?? []) as ObraSocialLite[]}
         grupos={grupos}
         celdas={(celdas ?? []) as CeldaMatriz[]}
+        practicas={(practicas ?? []) as PracticaMini[]}
+        overrides={(overrides ?? []) as OverridePractica[]}
       />
     </div>
   );

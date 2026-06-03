@@ -17,6 +17,7 @@ const GRUPOS = [
   "Ecografía / Doppler",
   "Radiología",
   "Cardiología",
+  "Radioterapia",
   "Consultas / Otros",
 ];
 
@@ -44,7 +45,8 @@ function colorFor(g: string | null): string {
     case "Ecografía / Doppler": return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
     case "Radiología": return "bg-teal-500/15 text-teal-300 border-teal-500/30";
     case "Cardiología": return "bg-orange-500/15 text-orange-300 border-orange-500/30";
-    default: return "bg-stone-500/15 text-stone-300 border-stone-500/40"; // Consultas / Otros / null
+    case "Radioterapia": return "bg-violet-500/15 text-violet-300 border-violet-500/30";
+    default: return "bg-stone-500/15 text-stone-300 border-stone-500/40";
   }
 }
 
@@ -101,7 +103,7 @@ export function EstudiosManager({ tenantId, practicas }: Props) {
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-500" />
           <Input
-            placeholder="Buscar estudio, servicio o código..."
+            placeholder="Buscar estudio, servicio o codigo..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9"
@@ -118,7 +120,7 @@ export function EstudiosManager({ tenantId, practicas }: Props) {
         </label>
         <div className="flex items-center gap-2 text-xs text-stone-400">
           <FlaskConical className="h-4 w-4 text-amber-400" />
-          {filtradas.length} estudios · {totalGeneral} sin clasificar
+          {filtradas.length} estudios &middot; {totalGeneral} sin clasificar
         </div>
       </div>
 
@@ -127,17 +129,17 @@ export function EstudiosManager({ tenantId, practicas }: Props) {
           <thead>
             <tr>
               <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide">Servicio</th>
-              <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide">Práctica</th>
-              <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide">Código</th>
+              <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide">Practica</th>
+              <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide">Codigo</th>
               <th className="sticky top-0 z-20 bg-stone-900 text-left text-stone-300 px-3 py-2 text-xs uppercase tracking-wide min-w-[200px]">Grupo</th>
             </tr>
           </thead>
           <tbody>
             {filtradas.map((p) => (
               <tr key={p.id} className="even:bg-stone-900/40">
-                <td className="px-3 py-1.5 text-stone-400 whitespace-nowrap">{p.servicio || "—"}</td>
+                <td className="px-3 py-1.5 text-stone-400 whitespace-nowrap">{p.servicio || "-"}</td>
                 <td className="px-3 py-1.5 text-stone-200">{p.nombre}</td>
-                <td className="px-3 py-1.5 text-stone-500 whitespace-nowrap">{p.codigo_nomenclador || "—"}</td>
+                <td className="px-3 py-1.5 text-stone-500 whitespace-nowrap">{p.codigo_nomenclador || "-"}</td>
                 <td className="px-3 py-1.5">
                   <div className="relative">
                     <select
