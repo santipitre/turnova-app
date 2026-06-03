@@ -95,20 +95,73 @@ let _id = 0;
 const nid = () => ++_id;
 
 export default function ChatPruebaPage() {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  type Sesion = { id: number; creada: number; msgs: Msg[] };
+  const LS_KEY = "fuesmen_chat_sesiones_v1";
+  const [sesiones, setSesiones] = useState<Sesion[]>([]);
+  const [activaId, setActivaId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [inPac, setInPac] = useState("");
   const [inFue, setInFue] = useState("");
   const greeted = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const activaIdRef = useRef<number | null>(null);
 
-  const push = (m: Omit<Msg, "id">) => setMsgs((s) => [...s, { id: nid(), ...m }]);
+  // Cargar historial guardado del navegador
+  useEffect(() => {
+    let arr: Sesion[] = [];
+    try { arr = JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { arr = []; }
+    if (!Array.isArray(arr) || arr.length === 0) arr = [{ id: Date.now(), creada: Date.now(), msgs: [] }];
+    _id = Math.max(0, ...arr.flatMap((s) => s.msgs.map((m) => m.id || 0)));
+    setSesiones(arr);
+    setActivaId(arr[arr.length - 1].id);
+  }, []);
 
-  const botGreetIfNeeded = useCallback(() => {
+  const activa = sesiones.find((s) => s.id === activaId) || null;
+  const msgs = activa?.msgs ?? [];
+
+  useEffect(() => {
+    activaIdRef.current = activaId;
+    greeted.current = !!activa?.msgs.some((m) => m.from === "fuesmen" && m.auto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activaId, sesiones]);
+
+  function persist(next: Sesion[]) {
+    setSesiones(next);
+    try { localStorage.setItem(LS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+  }
+  function push(m: Omit<Msg, "id">) {
+    setSesiones((prev) => {
+      const id = activaIdRef.current;
+      const next = prev.map((s) => (s.id === id ? { ...s, msgs: [...s.msgs, { id: nid(), ...m }] } : s));
+      try { localStorage.setItem(LS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  }
+  function nuevaConversacion() {
+    greeted.current = false;
+    const s = { id: Date.now(), creada: Date.now(), msgs: [] };
+    persist([...sesiones, s]); setActivaId(s.id); setInPac(""); setInFue("");
+  }
+  function borrarConversacion() {
+    const next = sesiones.filter((s) => s.id !== activaId);
+    if (next.length === 0) {
+      const s = { id: Date.now(), creada: Date.now(), msgs: [] };
+      persist([s]); setActivaId(s.id); greeted.current = false; return;
+    }
+    persist(next); setActivaId(next[next.length - 1].id);
+  }
+  function tituloSesion(s: Sesion) {
+    const doc = s.msgs.find((m) => m.doc)?.doc;
+    const txt = s.msgs.find((m) => m.text)?.text;
+    const f = new Date(s.creada).toLocaleString();
+    return `${f} · ${(doc || txt || "vacía").slice(0, 26)}`;
+  }
+
+  function botGreetIfNeeded() {
     if (greeted.current) return;
     greeted.current = true;
     setTimeout(() => push({ from: "fuesmen", auto: true, text: "¡Hola! 👋 Soy el asistente de *FUESMEN*. Envíame una *foto o PDF del pedido médico* y te digo si necesitás autorización. 📸" }), 400);
-  }, []);
+  }
 
   async function procesar(file: File) {
     push({ from: "paciente", text: "", doc: file.name });
@@ -173,6 +226,22 @@ export default function ChatPruebaPage() {
           Simulación de los dos lados. Escribí como *Paciente* o como *FUESMEN*. Cuando el paciente adjunta
           un pedido, el bot responde con las reglas REALES de la matriz. No reserva turno.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-stone-400">Conversación:</span>
+        <select
+          value={activaId ?? ""}
+          onChange={(e) => setActivaId(Number(e.target.value))}
+          className="rounded-lg bg-stone-900 border border-stone-700 text-stone-200 text-sm px-3 py-2 outline-none max-w-[55%]"
+        >
+          {sesiones.slice().reverse().map((s) => (
+            <option key={s.id} value={s.id} className="bg-stone-900">{tituloSesion(s)}</option>
+          ))}
+        </select>
+        <button onClick={nuevaConversacion} className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm px-3 py-2">➕ Nueva</button>
+        <button onClick={borrarConversacion} className="rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-sm px-3 py-2">🗑 Borrar</button>
+        <span className="text-[11px] text-stone-500">{sesiones.length} guardada(s)</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
