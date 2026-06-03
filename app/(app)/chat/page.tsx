@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Loader2, Paperclip, Stethoscope, Bot } from "lucide-react";
+import { Loader2, Paperclip, Stethoscope, User, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { fileToBase64 } from "@/lib/utils";
@@ -9,7 +9,8 @@ import { procesarPedido } from "@/lib/api/edge-functions";
 
 export const dynamic = "force-dynamic";
 
-interface Msg { from: "bot" | "user"; text: string; doc?: string }
+type Rol = "paciente" | "fuesmen";
+interface Msg { id: number; from: Rol; text: string; doc?: string; auto?: boolean }
 
 const REGLA_TXT: Record<string, string> = {
   SI_AUDITORIA: "requiere autorización previa CON auditoría médica de la obra social",
@@ -33,8 +34,6 @@ function buildRespuestas(result: any): string[] {
   const aut = matching.autorizacion ?? ex.autorizacion ?? null;
 
   const out: string[] = [];
-
-  // 1) Médico
   if (ex.medico_no_catalogado) {
     out.push(`👨‍⚕️ Leí al Dr./Dra. *${medicoNombre || "—"}*${matricula ? ` (Mat. ${matricula})` : ""}, pero no figura en nuestra base. Un agente lo va a verificar.`);
   } else if (ex.medico_match?.nombre) {
@@ -43,16 +42,10 @@ function buildRespuestas(result: any): string[] {
     out.push(`👨‍⚕️ Médico solicitante: *${medicoNombre}*${matricula ? ` (Mat. ${matricula})` : ""}.`);
   }
 
-  // 2) Estudio + obra social
   out.push(`📄 Estudio: *${estudio}*\n🏥 Obra social: *${obra}*`);
-  if (!matching.obra_social_id) {
-    out.push("⚠️ No pude identificar con certeza tu *obra social*. Un agente lo confirma para darte la información exacta de autorización.");
-  }
-  if (!matching.practica_id) {
-    out.push("⚠️ No pude identificar con certeza el *estudio* pedido. Un agente lo confirma.");
-  }
+  if (!matching.obra_social_id) out.push("⚠️ No pude identificar con certeza tu *obra social*. Un agente lo confirma.");
+  if (!matching.practica_id) out.push("⚠️ No pude identificar con certeza el *estudio* pedido. Un agente lo confirma.");
 
-  // 3) Autorización (núcleo, según la matriz)
   if (aut && matching.obra_social_id && matching.practica_id) {
     const reglaTxt = REGLA_TXT[aut.regla] || REGLA_TXT.A_CONFIRMAR;
     if (aut.requiere) {
@@ -64,80 +57,94 @@ function buildRespuestas(result: any): string[] {
       out.push(m);
       out.push("Cuando tengas la autorización, escribime y coordinamos el turno. 🙌");
     } else if (aut.regla === "NO_DIRECTO") {
-      out.push(`✅ Al ser *atención particular*, no se gestiona autorización. Podemos coordinar el turno directamente. 🗓️`);
+      out.push("✅ Al ser *atención particular*, no se gestiona autorización. Coordinamos el turno directamente. 🗓️");
     } else {
-      let m = `✅ Buenas noticias: este estudio *no requiere autorización previa*.`;
+      let m = "✅ Buenas noticias: este estudio *no requiere autorización previa*.";
       if (aut.requisitos) m += `\nℹ️ ${aut.requisitos}`;
-      m += `\nPodemos coordinar el turno directamente. 🗓️`;
+      m += "\nCoordinamos el turno directamente. 🗓️";
       out.push(m);
     }
   } else {
-    out.push("Para decirte si necesitás autorización, primero un agente confirma la obra social y el estudio. Te escribimos a la brevedad. 🙏");
+    out.push("Para decirte si necesitás autorización, primero confirmamos la obra social y el estudio. 🙏");
   }
 
-  // 4) Revisión manual / baja confianza
   if (ex.requiere_revision_manual || conf < 0.85) {
-    out.push("📝 Un agente de FUESMEN va a revisar tu pedido para confirmar todos los datos antes de avanzar.");
+    out.push("📝 Un agente de FUESMEN va a revisar tu pedido para confirmar todos los datos.");
   }
-
   return out;
 }
 
+let _id = 0;
+const nid = () => ++_id;
+
 export default function ChatPruebaPage() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [msgs, setMsgs] = useState<Msg[]>([
-    { from: "bot", text: "¡Hola! 👋 Soy el asistente de turnos de *FUESMEN*. Enviame una *foto o PDF del pedido médico* y te digo si necesitás autorización. 📸" },
-  ]);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
+  const [inPac, setInPac] = useState("");
+  const [inFue, setInFue] = useState("");
+  const greeted = useRef(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
-  }, [msgs, loading]);
+  const push = (m: Omit<Msg, "id">) => setMsgs((s) => [...s, { id: nid(), ...m }]);
 
-  const procesar = useCallback(async (file: File) => {
-    setMsgs((m) => [...m, { from: "user", text: "", doc: file.name }, { from: "user", text: "Hola, necesito turno para este estudio 🙏" }]);
+  const botGreetIfNeeded = useCallback(() => {
+    if (greeted.current) return;
+    greeted.current = true;
+    setTimeout(() => push({ from: "fuesmen", auto: true, text: "¡Hola! 👋 Soy el asistente de *FUESMEN*. Envíame una *foto o PDF del pedido médico* y te digo si necesitás autorización. 📸" }), 400);
+  }, []);
+
+  async function procesar(file: File) {
+    push({ from: "paciente", text: "", doc: file.name });
+    botGreetIfNeeded();
     setLoading(true);
     try {
       const base64 = await fileToBase64(file);
       const result = await procesarPedido({ archivo_base64: base64, media_type: file.type, canal_origen: "web" });
       const respuestas = buildRespuestas(result);
-      // mostrar respuestas escalonadas
       for (let i = 0; i < respuestas.length; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 200 : 550));
-        setMsgs((m) => [...m, { from: "bot", text: respuestas[i] }]);
+        await new Promise((r) => setTimeout(r, i === 0 ? 300 : 600));
+        push({ from: "fuesmen", auto: true, text: respuestas[i] });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error";
-      setMsgs((m) => [...m, { from: "bot", text: `❌ No pude procesar el pedido: ${msg}` }]);
+      push({ from: "fuesmen", auto: true, text: `❌ No pude procesar el pedido: ${msg}` });
       toast.error("Error procesando", { description: msg });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  // pegar con Ctrl+V
+  function enviarPaciente() {
+    const t = inPac.trim();
+    if (!t) return;
+    push({ from: "paciente", text: t });
+    setInPac("");
+    botGreetIfNeeded();
+  }
+  function enviarFuesmen() {
+    const t = inFue.trim();
+    if (!t) return;
+    push({ from: "fuesmen", text: t });
+    setInFue("");
+  }
+
+  // pegar imagen con Ctrl+V => como paciente
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
       const items = e.clipboardData?.items;
       if (!items) return;
       for (const it of items) {
-        if (it.kind === "file") {
-          const blob = it.getAsFile();
-          if (blob) { e.preventDefault(); procesar(blob); return; }
-        }
+        if (it.kind === "file") { const b = it.getAsFile(); if (b) { e.preventDefault(); procesar(b); return; } }
       }
     }
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [procesar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function fmt(t: string) {
-    // *negrita* -> <strong>, saltos de línea
-    const html = t
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/\*([^*]+)\*/g, "<strong>$1</strong>")
-      .replace(/\n/g, "<br/>");
+    const html = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*([^*]+)\*/g, "<strong>$1</strong>").replace(/\n/g, "<br/>");
     return { __html: html };
   }
 
@@ -146,71 +153,130 @@ export default function ChatPruebaPage() {
       <div>
         <h1 className="text-display-lg">Chat (prueba)</h1>
         <p className="text-stone-400 mt-1">
-          Simulá el chat del paciente. Subí un pedido y el bot responde con las reglas REALES de la
-          matriz (autorización por grupo + excepciones por estudio). No reserva turno.
+          Simulación de los dos lados. Escribí como *Paciente* o como *FUESMEN*. Cuando el paciente adjunta
+          un pedido, el bot responde con las reglas REALES de la matriz. No reserva turno.
         </p>
       </div>
 
-      <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden border border-stone-800 shadow-xl">
-        {/* header tipo WhatsApp */}
-        <div className="flex items-center gap-3 px-4 py-3" style={{ background: "#075e54" }}>
-          <div className="h-9 w-9 rounded-full bg-white/15 grid place-items-center text-white"><Stethoscope className="h-5 w-5" /></div>
-          <div className="text-white">
-            <div className="font-semibold leading-tight">FUESMEN · Turnos</div>
-            <div className="text-[11px] opacity-80">responde al instante</div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChatPane
+          perspective="paciente"
+          title="Paciente"
+          subtitle="vos sos el paciente"
+          accent="#005c4b"
+          icon={<User className="h-5 w-5" />}
+          msgs={msgs}
+          fmt={fmt}
+          value={inPac}
+          onChange={setInPac}
+          onSend={enviarPaciente}
+          onAttach={() => fileRef.current?.click()}
+          loading={loading}
+        />
+        <ChatPane
+          perspective="fuesmen"
+          title="FUESMEN · Turnos"
+          subtitle="vos sos el centro / agente"
+          accent="#075e54"
+          icon={<Stethoscope className="h-5 w-5" />}
+          msgs={msgs}
+          fmt={fmt}
+          value={inFue}
+          onChange={setInFue}
+          onSend={enviarFuesmen}
+          loading={loading}
+        />
+      </div>
 
-        {/* cuerpo */}
-        <div ref={bodyRef} className="p-3 space-y-2 overflow-y-auto" style={{ background: "#0b141a", minHeight: "46vh", maxHeight: "60vh" }}>
-          {msgs.map((m, i) => (
-            <div key={i} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[82%] rounded-lg px-3 py-2 text-sm leading-relaxed ${m.from === "user" ? "text-stone-100" : "text-stone-100"}`}
-                style={{ background: m.from === "user" ? "#005c4b" : "#202c33" }}
-              >
-                {m.doc ? (
-                  <div className="flex items-center gap-2 text-stone-200">
-                    <Paperclip className="h-4 w-4" />
-                    <span className="text-xs">{m.doc}</span>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
+        className="sr-only"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) procesar(f); if (e.target) e.target.value = ""; }}
+      />
+
+      <p className="text-center text-xs text-stone-500">
+        El bot saluda y analiza automáticamente cuando el paciente adjunta un pedido. Desde el lado FUESMEN
+        podés intervenir a mano en cualquier momento.
+      </p>
+    </div>
+  );
+}
+
+function ChatPane({
+  perspective, title, subtitle, accent, icon, msgs, fmt, value, onChange, onSend, onAttach, loading,
+}: {
+  perspective: Rol; title: string; subtitle: string; accent: string;
+  icon: React.ReactNode; msgs: Msg[]; fmt: (t: string) => { __html: string };
+  value: string; onChange: (v: string) => void; onSend: () => void; onAttach?: () => void; loading: boolean;
+}) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" }); }, [msgs, loading]);
+
+  return (
+    <div className="rounded-2xl overflow-hidden border border-stone-800 shadow-xl flex flex-col">
+      <div className="flex items-center gap-3 px-4 py-3" style={{ background: accent }}>
+        <div className="h-9 w-9 rounded-full bg-white/15 grid place-items-center text-white">{icon}</div>
+        <div className="text-white">
+          <div className="font-semibold leading-tight">{title}</div>
+          <div className="text-[11px] opacity-80">{subtitle}</div>
+        </div>
+      </div>
+
+      <div ref={bodyRef} className="p-3 space-y-2 overflow-y-auto" style={{ background: "#0b141a", minHeight: "44vh", maxHeight: "56vh" }}>
+        {msgs.length === 0 && (
+          <div className="text-center text-stone-600 text-xs pt-10">
+            {perspective === "paciente" ? "Escribí o adjuntá un pedido para iniciar." : "Esperando que el paciente inicie..."}
+          </div>
+        )}
+        {msgs.map((m) => {
+          const mine = m.from === perspective;
+          return (
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed text-stone-100"
+                style={{ background: mine ? (perspective === "paciente" ? "#005c4b" : "#075e54") : "#202c33" }}>
+                {!mine && (
+                  <div className="text-[10px] mb-0.5 opacity-70">
+                    {m.from === "fuesmen" ? (m.auto ? "FUESMEN · bot" : "FUESMEN") : "Paciente"}
                   </div>
+                )}
+                {m.doc ? (
+                  <div className="flex items-center gap-2"><Paperclip className="h-4 w-4" /><span className="text-xs">{m.doc}</span></div>
                 ) : (
                   <span dangerouslySetInnerHTML={fmt(m.text)} />
                 )}
               </div>
             </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="rounded-lg px-3 py-2 text-sm text-stone-300 flex items-center gap-2" style={{ background: "#202c33" }}>
-                <Bot className="h-4 w-4" /> <Loader2 className="h-3 w-3 animate-spin" /> leyendo el pedido con IA...
-              </div>
+          );
+        })}
+        {loading && perspective === "fuesmen" && (
+          <div className="flex justify-end">
+            <div className="rounded-lg px-3 py-2 text-xs text-stone-300 flex items-center gap-2" style={{ background: "#075e54" }}>
+              <Loader2 className="h-3 w-3 animate-spin" /> leyendo el pedido...
             </div>
-          )}
-        </div>
-
-        {/* footer */}
-        <div className="flex items-center gap-2 px-3 py-3 bg-stone-900 border-t border-stone-800">
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
-            className="sr-only"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) procesar(f); if (e.target) e.target.value = ""; }}
-          />
-          <button
-            onClick={() => inputRef.current?.click()}
-            disabled={loading}
-            className="flex-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-sm py-2.5 px-4 flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Paperclip className="h-4 w-4" /> Adjuntar pedido médico (o pegá con Ctrl+V)
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      <p className="max-w-2xl mx-auto text-center text-xs text-stone-500">
-        Probá editando una regla en <b>Autorizaciones</b> o una excepción por estudio, y reenviá el mismo pedido: la respuesta del bot cambia al instante.
-      </p>
+      <div className="flex items-center gap-2 px-2.5 py-2.5 bg-stone-900 border-t border-stone-800">
+        {onAttach && (
+          <button onClick={onAttach} disabled={loading} title="Adjuntar pedido"
+            className="shrink-0 h-9 w-9 grid place-items-center rounded-full bg-stone-800 hover:bg-stone-700 text-stone-300 disabled:opacity-50">
+            <Paperclip className="h-4 w-4" />
+          </button>
+        )}
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSend(); } }}
+          placeholder={perspective === "paciente" ? "Escribí como paciente..." : "Escribí como FUESMEN..."}
+          className="flex-1 rounded-full bg-stone-800 text-stone-100 text-sm px-4 py-2 outline-none placeholder:text-stone-500"
+        />
+        <button onClick={onSend} className="shrink-0 h-9 w-9 grid place-items-center rounded-full text-white" style={{ background: accent }}>
+          <Send className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
