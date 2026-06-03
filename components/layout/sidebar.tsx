@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   ShieldCheck,
+  FlaskConical,
 } from "lucide-react";
 
 import { TurnovaLockup } from "@/components/brand/turnova-lockup";
@@ -34,6 +35,7 @@ const navMain: NavItem[] = [
 const navConfig: NavItem[] = [
   { label: "Obras Sociales", href: "/obras-sociales", icon: Shield },
   { label: "Autorizaciones", href: "/autorizaciones", icon: ShieldCheck },
+  { label: "Estudios / Grupos", href: "/estudios", icon: FlaskConical },
   { label: "Cupos Semanales", href: "/cupos", icon: LayoutGrid },
   { label: "Configuración", href: "/configuracion", icon: Settings },
 ];
