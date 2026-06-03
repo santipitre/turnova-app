@@ -2,13 +2,26 @@ import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-session";
 import {
   MatrizAutorizacionesManager,
-  GRUPOS_DEFAULT,
   type ObraSocialLite,
   type CeldaMatriz,
 } from "@/components/autorizaciones/matriz-manager";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Autorizaciones" };
+
+// Definido acá (server) — NO importar valores desde un módulo "use client".
+const GRUPOS_DEFAULT = [
+  "PET",
+  "Medicina Nuclear / SPECT",
+  "Resonancia Magnética",
+  "Tomografía",
+  "Mamografía",
+  "Densitometría",
+  "Ecografía / Doppler",
+  "Radiología",
+  "Cardiología",
+  "Consultas / Otros",
+];
 
 export default async function AutorizacionesPage() {
   const user = getServerUser();
