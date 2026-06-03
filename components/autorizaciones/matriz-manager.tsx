@@ -95,6 +95,7 @@ export function MatrizAutorizacionesManager({
   const [query, setQuery] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [dlg, setDlg] = useState<{ obraId: string; obraNombre: string; grupo: string } | null>(null);
+  const [dlgQuery, setDlgQuery] = useState("");
 
   const practicasByGrupo = useMemo(() => {
     const m: Record<string, PracticaMini[]> = {};
@@ -252,45 +253,63 @@ export function MatrizAutorizacionesManager({
         </table>
       </div>
 
-      {/* Expandir grupo → excepciones por estudio */}
-      <Dialog open={!!dlg} onOpenChange={(o) => { if (!o) setDlg(null); }}>
-        <DialogContent className="max-h-[80vh] overflow-auto">
+      {/* Expandir grupo -> excepciones por estudio */}
+      <Dialog open={!!dlg} onOpenChange={(o) => { if (!o) { setDlg(null); setDlgQuery(""); } }}>
+        <DialogContent className="max-w-3xl w-[92vw] max-h-[82vh] overflow-hidden bg-stone-950 border border-stone-800 text-stone-200 p-0 flex flex-col">
           {dlg && (() => {
             const reglaGrupo = valorDe(dlg.obraId, dlg.grupo);
             const reglaGrupoLabel = OPCIONES.find((x) => x.value === reglaGrupo)?.label ?? reglaGrupo;
-            const lista = practicasByGrupo[dlg.grupo] || [];
+            const all = practicasByGrupo[dlg.grupo] || [];
+            const q = dlgQuery.toLowerCase().trim();
+            const lista = q
+              ? all.filter((p) => p.nombre.toLowerCase().includes(q) || (p.codigo_nomenclador ?? "").toLowerCase().includes(q))
+              : all;
+            const nOv = overrideCount(dlg.obraId, dlg.grupo);
             return (
               <>
-                <DialogHeader>
-                  <DialogTitle>{dlg.grupo}</DialogTitle>
-                  <DialogDescription>
-                    {dlg.obraNombre} · regla del grupo: <b>{reglaGrupoLabel}</b>. Cada estudio hereda esa regla;
-                    cambiá solo los que sean excepción.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-1.5">
+                <div className="px-5 pt-5 pb-3 border-b border-stone-800">
+                  <DialogHeader>
+                    <DialogTitle className="text-stone-100">{dlg.grupo}</DialogTitle>
+                    <DialogDescription className="text-stone-400">
+                      {dlg.obraNombre} — regla del grupo:{" "}
+                      <span className={`inline-block align-middle px-2 py-0.5 rounded border text-[11px] ${colorFor(reglaGrupo)}`}>{reglaGrupoLabel}</span>
+                      {nOv > 0 && <span className="ml-2 text-amber-300">· {nOv} excepción(es)</span>}
+                      <span className="block mt-1 text-[11px] text-stone-500">Cada estudio hereda la regla del grupo; cambiá solo los que sean excepción.</span>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="relative mt-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-500" />
+                    <input
+                      value={dlgQuery}
+                      onChange={(e) => setDlgQuery(e.target.value)}
+                      placeholder="Buscar estudio..."
+                      className="w-full rounded-lg bg-stone-900 border border-stone-700 text-stone-200 pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+                </div>
+                <div className="overflow-y-auto overflow-x-hidden px-5 py-1">
                   {lista.map((p) => {
                     const ov = overMap[k(dlg.obraId, p.id)] ?? "";
                     return (
-                      <div key={p.id} className="flex items-center gap-2 border-b border-slate-100 py-1.5">
+                      <div key={p.id} className="flex items-center gap-3 border-b border-stone-800/70 py-2">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-slate-800 truncate">{p.nombre}</div>
-                          {p.codigo_nomenclador && <div className="text-[10px] text-slate-400">{p.codigo_nomenclador}</div>}
+                          <div className="text-sm text-stone-200 truncate" title={p.nombre}>{p.nombre}</div>
+                          {p.codigo_nomenclador && <div className="text-[10px] text-stone-500">{p.codigo_nomenclador}</div>}
                         </div>
                         <select
                           value={ov}
                           onChange={(e) => onChangeOverride(dlg.obraId, p.id, e.target.value)}
-                          className="rounded border border-slate-300 bg-white text-slate-800 text-xs px-2 py-1 outline-none"
+                          className={`shrink-0 w-40 rounded border text-xs px-2 py-1.5 outline-none cursor-pointer ${ov ? colorFor(ov) : "bg-stone-900 border-stone-700 text-stone-300"}`}
                         >
-                          <option value="">(hereda: {reglaGrupoLabel})</option>
+                          <option value="" className="bg-stone-900 text-stone-300">Hereda ({reglaGrupoLabel})</option>
                           {OPCIONES.map((op) => (
-                            <option key={op.value} value={op.value}>{op.label}</option>
+                            <option key={op.value} value={op.value} className="bg-stone-900 text-stone-100">{op.label}</option>
                           ))}
                         </select>
                       </div>
                     );
                   })}
-                  {lista.length === 0 && <div className="text-sm text-slate-500 py-4">No hay estudios cargados en este grupo.</div>}
+                  {lista.length === 0 && <div className="text-sm text-stone-500 py-6 text-center">Sin estudios.</div>}
                 </div>
               </>
             );
