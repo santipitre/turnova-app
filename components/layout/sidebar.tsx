@@ -13,6 +13,7 @@ import {
   Sparkles,
   ShieldCheck,
   FlaskConical,
+  MessageCircle,
 } from "lucide-react";
 
 import { TurnovaLockup } from "@/components/brand/turnova-lockup";
@@ -28,6 +29,7 @@ interface NavItem {
 const navMain: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Pedidos Médicos", href: "/pedidos", icon: Inbox },
+  { label: "Chat (prueba)", href: "/chat", icon: MessageCircle },
   { label: "Turnos", href: "/turnos", icon: Calendar },
   { label: "Pacientes", href: "/pacientes", icon: Users },
 ];
