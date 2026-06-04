@@ -6,7 +6,8 @@
  * Si no hay sesion valida y la ruta es privada, redirige a /login.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { decodeSession, SESSION_COOKIE_NAME } from "@/lib/auth/pyralis-auth";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/pyralis-auth";
+import { verifyCookieEdge } from "@/lib/auth/session-verify-edge";
 
 const RUTAS_PUBLICAS = [
   "/login",
@@ -26,7 +27,7 @@ export async function updateSession(request: NextRequest) {
     esRaiz || RUTAS_PUBLICAS.some((r) => url.pathname.startsWith(r));
 
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = decodeSession(sessionCookie);
+  const session = await verifyCookieEdge(sessionCookie);
 
   // No hay sesion valida y la ruta requiere auth -> redirect a login
   if (!session && !esRutaPublica) {

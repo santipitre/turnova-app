@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { loginWithPin } from "@/lib/auth/pyralis-auth";
-import { setClientSession } from "@/lib/auth/client-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,10 +23,15 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const user = await loginWithPin(username, pin);
-      setClientSession(user);
-      toast.success(`Bienvenido, ${user.nombre}`);
-      // Forzar reload completo para que el middleware vea la cookie nueva
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Verificá usuario y PIN");
+      toast.success(`Bienvenido, ${data.user?.nombre ?? ""}`);
+      // Reload completo para que el middleware vea la cookie nueva
       window.location.href = redirectTo;
     } catch (err: any) {
       toast.error("No pudimos iniciar sesión", {
