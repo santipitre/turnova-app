@@ -42,8 +42,19 @@ const navConfig: NavItem[] = [
   { label: "Configuración", href: "/configuracion", icon: Settings },
 ];
 
-export function Sidebar({ pedidosPendientes = 0 }: { pedidosPendientes?: number }) {
+export function Sidebar({
+  pedidosPendientes = 0,
+  rol = null,
+}: {
+  pedidosPendientes?: number;
+  rol?: string | null;
+}) {
   const pathname = usePathname();
+  const esAdmin = rol === "admin" || rol === "superadmin";
+  // Configuración (incluye gestión de usuarios) solo para admin/superadmin.
+  const navConfigVisible = navConfig.filter(
+    (item) => item.href !== "/configuracion" || esAdmin,
+  );
 
   return (
     <aside
@@ -106,7 +117,7 @@ export function Sidebar({ pedidosPendientes = 0 }: { pedidosPendientes?: number 
         <div className="text-[10px] font-semibold tracking-[0.18em] text-amber-400/70 uppercase px-3 py-2 mt-6">
           Configuración
         </div>
-        {navConfig.map((item) => {
+        {navConfigVisible.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
           return (

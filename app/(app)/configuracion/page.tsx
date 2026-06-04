@@ -1,5 +1,6 @@
 import { createClient, createPublicClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-session";
+import { esAdmin } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,16 @@ export default async function ConfiguracionPage() {
   const supabase = createClient();
   const user = getServerUser();
   if (!user) return null;
+  if (!esAdmin(user.rol_turnova)) {
+    return (
+      <div className="max-w-lg mx-auto mt-20 text-center space-y-2">
+        <h1 className="text-display-md">Sin permisos</h1>
+        <p className="text-stone-400">
+          Esta sección es solo para administradores. Pedile a un admin de FUESMEN que te dé acceso si lo necesitás.
+        </p>
+      </div>
+    );
+  }
 
   // Cargar tenant Turnova
   const { data: tenant } = await supabase
