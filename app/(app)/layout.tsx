@@ -3,6 +3,7 @@ import { createClient, createPublicClient } from "@/lib/supabase/server";
 import { getServerSession } from "@/lib/auth/server-session";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { CambiarPinModal } from "@/components/auth/cambiar-pin-modal";
 
 export default async function AppLayout({
   children,
@@ -17,7 +18,7 @@ export default async function AppLayout({
   const { user } = session;
 
   if (!user.tenant_id) {
-    // Usuario válido pero sin tenant Turnova asociado → flag
+    // Usuario válido pero sin tenant Turnova asociado -> flag
     redirect("/auth/error?reason=sin_tenant");
   }
 
@@ -41,6 +42,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-950">
+      <CambiarPinModal open={!!user.debe_cambiar_pin} />
       <Sidebar pedidosPendientes={pedidosPendientes ?? 0} rol={user.rol_turnova} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header

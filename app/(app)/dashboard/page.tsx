@@ -147,7 +147,7 @@ export default async function DashboardPage() {
           </div>
 
           <h1 className="text-display-lg text-white mb-1">
-            {saludo}, <span className="lumen-text-glow">Santiago</span>
+            {saludo}, <span className="lumen-text-glow">{nombre}</span>
           </h1>
           <p className="text-stone-300">
             {formatFecha(hoy, "EEEE d 'de' MMMM, yyyy")} · {pedidosEnCola ?? 0} pedidos
