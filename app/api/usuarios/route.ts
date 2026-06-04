@@ -10,6 +10,7 @@ import { getServerUser } from "@/lib/auth/server-session";
 import { esAdmin } from "@/lib/auth/roles";
 import { createServiceClient } from "@/lib/supabase/server";
 import { platformAsUser } from "@/lib/supabase/platform-admin";
+import { extraerPin } from "@/lib/usuarios/pin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
   let pinTemporal: string | null = null;
   try {
     const { data: pin } = await plat.rpc("admin_reset_pin", { p_usuario_id: nuevoId });
-    pinTemporal = typeof pin === "string" ? pin : (pin?.pin || pin?.pin_temporal || null);
+    pinTemporal = extraerPin(pin);
   } catch { /* no bloqueante */ }
 
   return NextResponse.json({ ok: true, id: nuevoId, username, rol_turnova: rolTurnova, pin_temporal: pinTemporal });

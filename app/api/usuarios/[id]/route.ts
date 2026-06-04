@@ -7,6 +7,7 @@ import { getServerUser } from "@/lib/auth/server-session";
 import { esAdmin } from "@/lib/auth/roles";
 import { createServiceClient } from "@/lib/supabase/server";
 import { platformAsUser } from "@/lib/supabase/platform-admin";
+import { extraerPin } from "@/lib/usuarios/pin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +49,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const plat = platformAsUser(user.auth_user_id);
   const { data: pin, error } = await plat.rpc("admin_reset_pin", { p_usuario_id: params.id });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  const pinTemporal = typeof pin === "string" ? pin : (pin?.pin || pin?.pin_temporal || null);
-  return NextResponse.json({ ok: true, pin_temporal: pinTemporal });
+  return NextResponse.json({ ok: true, pin_temporal: extraerPin(pin) });
 }
