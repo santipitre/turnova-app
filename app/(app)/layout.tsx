@@ -41,7 +41,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-950">
-      <Sidebar pedidosPendientes={pedidosPendientes ?? 0} />
+      <Sidebar pedidosPendientes={pedidosPendientes ?? 0} rol={user.rol_turnova} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           userName={user.nombre}

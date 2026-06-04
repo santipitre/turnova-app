@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerClient, createServiceClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-session";
+import { puedeEditar } from "@/lib/auth/roles";
 import { extraerDatosPedido } from "@/lib/api/claude-vision";
 
 export const runtime = "nodejs"; // Necesitamos Node, no Edge (atob, fetch grande)
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
   }
   if (!user.tenant_id) {
     return NextResponse.json({ error: "Usuario sin tenant Turnova" }, { status: 403 });
+  }
+  if (!puedeEditar(user.rol_turnova)) {
+    return NextResponse.json({ error: "Tu rol (solo lectura) no permite procesar pedidos." }, { status: 403 });
   }
 
   const supabase = createServerClient();

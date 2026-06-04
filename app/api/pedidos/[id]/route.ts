@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-session";
+import { puedeEditar } from "@/lib/auth/roles";
 
 interface UpdatePayload {
   practica_detectada?: string;
@@ -33,6 +34,9 @@ export async function PATCH(
   const user = getServerUser();
   if (!user || !user.tenant_id) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  if (!puedeEditar(user.rol_turnova)) {
+    return NextResponse.json({ error: "Tu rol (solo lectura) no permite editar pedidos." }, { status: 403 });
   }
 
   // 2. Parse body
