@@ -68,24 +68,34 @@ export async function POST(request: Request) {
   if (!ROLES_VALIDOS.includes(rolTurnova)) return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
 
   const plat = platformAsUser(user.auth_user_id);
+  const admin = createServiceClient();
 
-  // 1) Crear usuario en la plataforma (como admin)
+  // 1) Crear usuario en la plataforma (como admin). Idempotente: si ya existe,
+  //    lo recuperamos por username y completamos licencia/rol/PIN igual.
+  let nuevoId: string | null = null;
   const { data: creado, error: e1 } = await plat.rpc("admin_crear_usuario", {
     p_username: username, p_nombre: nombre, p_email: email || null, p_rol: "mixto", p_permisos: {},
   });
-  if (e1) return NextResponse.json({ error: `No se pudo crear el usuario: ${e1.message}` }, { status: 400 });
-  const nuevoId: string | null =
-    typeof creado === "string" ? creado : (creado?.id || creado?.usuario_id || creado?.user_id || null);
+  if (e1) {
+    // ¿El usuario ya existe (alta previa parcial)? Recuperar su id y continuar.
+    const { data: existente } = await admin
+      .schema("public").from("usuarios").select("id").eq("username", username).maybeSingle();
+    if (!existente?.id) {
+      return NextResponse.json({ error: `No se pudo crear el usuario: ${e1.message}` }, { status: 400 });
+    }
+    nuevoId = existente.id;
+  } else {
+    nuevoId = typeof creado === "string" ? creado : (creado?.id || creado?.usuario_id || creado?.user_id || null);
+  }
   if (!nuevoId) return NextResponse.json({ error: "El alta no devolvió un id de usuario." }, { status: 500 });
 
-  // 2) Otorgar licencia Turnova en este tenant
+  // 2) Otorgar licencia Turnova en este tenant (uso interno FUESMEN = unlimited)
   const { error: e2 } = await plat.rpc("otorgar_licencia_turnova", {
-    p_usuario_id: nuevoId, p_tenant_id: user.tenant_id, p_plan: "interno", p_dias: 3650, p_notas: "Alta interna FUESMEN",
+    p_usuario_id: nuevoId, p_tenant_id: user.tenant_id, p_plan: "unlimited", p_dias: 3650, p_notas: "Alta interna FUESMEN",
   });
   if (e2) return NextResponse.json({ error: `Usuario creado pero falló la licencia: ${e2.message}`, id: nuevoId }, { status: 500 });
 
   // 3) Asignar rol Turnova en profiles
-  const admin = createServiceClient();
   await admin.from("profiles").update({ rol: rolTurnova }).eq("id", nuevoId).eq("tenant_id", user.tenant_id);
 
   // 4) PIN temporal
