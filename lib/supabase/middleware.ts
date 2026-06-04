@@ -11,6 +11,8 @@ import { verifyCookieEdge } from "@/lib/auth/session-verify-edge";
 
 const RUTAS_PUBLICAS = [
   "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
   "/landing",
   "/auth/error",
   "/lector-publico",
