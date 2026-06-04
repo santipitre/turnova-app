@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, UserPlus, KeyRound, RefreshCw } from "lucide-react";
+import { Loader2, UserPlus, KeyRound, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
@@ -20,11 +20,13 @@ const ROLES = [
   { value: "solo_lectura", label: "Solo lectura" },
 ];
 
-export function UsuariosManager() {
+export function UsuariosManager({ currentUserId }: { currentUserId?: string }) {
   const [lista, setLista] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [creando, setCreando] = useState(false);
   const [pinNuevo, setPinNuevo] = useState<{ username: string; pin: string } | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
   const [form, setForm] = useState({ username: "", nombre: "", email: "", rol_turnova: "operador" });
 
   async function cargar() {
@@ -81,6 +83,21 @@ export function UsuariosManager() {
     if (!r.ok) { toast.error(d?.error || "No se pudo resetear"); return; }
     if (d.pin_temporal) setPinNuevo({ username, pin: d.pin_temporal });
     toast.success("PIN reseteado");
+  }
+  async function eliminar(id: string) {
+    setEliminando(id);
+    try {
+      const r = await fetch(`/api/usuarios/${id}`, { method: "DELETE" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.error || "No se pudo eliminar");
+      toast.success("Usuario eliminado del centro");
+      setConfirmId(null);
+      cargar();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo eliminar");
+    } finally {
+      setEliminando(null);
+    }
   }
 
   return (
@@ -139,10 +156,28 @@ export function UsuariosManager() {
                   <td className="px-4 py-2">
                     <input type="checkbox" checked={u.activo} onChange={(e) => toggleActivo(u.id, e.target.checked)} className="accent-emerald-500" />
                   </td>
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={() => resetPin(u.id, u.username)} className="text-xs text-stone-400 hover:text-amber-300 inline-flex items-center gap-1">
-                      <KeyRound className="h-3 w-3" /> Reset PIN
-                    </button>
+                  <td className="px-4 py-2">
+                    {confirmId === u.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-xs text-stone-400">¿Eliminar?</span>
+                        <button onClick={() => eliminar(u.id)} disabled={eliminando === u.id}
+                          className="text-xs text-red-300 hover:text-red-200 inline-flex items-center gap-1 disabled:opacity-50">
+                          {eliminando === u.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Sí, eliminar
+                        </button>
+                        <button onClick={() => setConfirmId(null)} className="text-xs text-stone-500 hover:text-stone-300">Cancelar</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-3">
+                        <button onClick={() => resetPin(u.id, u.username)} className="text-xs text-stone-400 hover:text-amber-300 inline-flex items-center gap-1">
+                          <KeyRound className="h-3 w-3" /> Reset PIN
+                        </button>
+                        {u.id !== currentUserId && (
+                          <button onClick={() => setConfirmId(u.id)} className="text-xs text-stone-400 hover:text-red-300 inline-flex items-center gap-1">
+                            <Trash2 className="h-3 w-3" /> Eliminar
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

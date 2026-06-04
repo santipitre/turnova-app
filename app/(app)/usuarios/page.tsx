@@ -25,7 +25,7 @@ export default async function UsuariosPage() {
           Gestioná quién accede a Turnova en FUESMEN y con qué rol. El PIN temporal se muestra una sola vez al crear o resetear.
         </p>
       </div>
-      <UsuariosManager />
+      <UsuariosManager currentUserId={user.id} />
     </div>
   );
 }
