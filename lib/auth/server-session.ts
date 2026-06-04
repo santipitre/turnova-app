@@ -6,20 +6,19 @@ import { cookies } from "next/headers";
 import {
   SESSION_COOKIE_NAME,
   SESSION_TIMEOUT_MS,
-  decodeSession,
-  encodeSession,
   type TurnovaSession,
   type TurnovaUser,
 } from "./pyralis-auth";
+import { signCookie, verifyCookieNode } from "./session-sign";
 
 /**
  * Lee la sesión actual desde cookies (Server Component / Route Handler).
- * Devuelve null si no hay sesión o expiró.
+ * Devuelve null si no hay sesión válida (firma inválida o expirada).
  */
 export function getServerSession(): TurnovaSession | null {
   const store = cookies();
   const raw = store.get(SESSION_COOKIE_NAME)?.value;
-  return decodeSession(raw);
+  return verifyCookieNode(raw);
 }
 
 /**
@@ -35,7 +34,7 @@ export function getServerUser(): TurnovaUser | null {
  */
 export function setServerSession(user: TurnovaUser) {
   const store = cookies();
-  const value = encodeSession(user);
+  const value = signCookie(user);
   store.set(SESSION_COOKIE_NAME, value, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

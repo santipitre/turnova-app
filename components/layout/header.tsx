@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Bell, LogOut, Search, User } from "lucide-react";
 import { toast } from "sonner";
 
-import { clearClientSession } from "@/lib/auth/client-session";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,10 +20,10 @@ export function Header({ userName, userEmail, tenantName }: HeaderProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  function handleLogout() {
-    clearClientSession();
+  async function handleLogout() {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* noop */ }
     toast.success("Sesión cerrada");
-    // Forzar reload completo para que el middleware pierda la cookie
+    // Reload completo para que el middleware pierda la cookie
     window.location.href = "/login";
   }
 
