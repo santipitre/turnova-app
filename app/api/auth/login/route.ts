@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { loginWithPin } from "@/lib/auth/pyralis-auth";
 import { setServerSession } from "@/lib/auth/server-session";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,13 @@ export async function POST(request: Request) {
 
   try {
     const user = await loginWithPin(username, pin);
+    // Traer auth_user_id (para poder firmar JWT de plataforma en operaciones admin)
+    try {
+      const admin = createServiceClient();
+      const { data } = await admin.schema("public").from("usuarios")
+        .select("auth_user_id").eq("id", user.id).single();
+      user.auth_user_id = data?.auth_user_id ?? null;
+    } catch { /* no bloqueante */ }
     setServerSession(user);
     // No devolvemos datos sensibles; solo lo necesario para la UI.
     return NextResponse.json({

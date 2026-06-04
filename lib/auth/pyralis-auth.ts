@@ -23,6 +23,7 @@ export interface TurnovaUser {
   debe_cambiar_pin: boolean;
   tenant_id: string | null;
   rol_turnova: string | null; // superadmin/admin/operador/solo_lectura
+  auth_user_id?: string | null; // uuid de Supabase Auth (para firmar JWT de plataforma)
 }
 
 export interface TurnovaSession {

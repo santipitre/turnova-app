@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   FlaskConical,
   MessageCircle,
+  UserCog,
 } from "lucide-react";
 
 import { TurnovaLockup } from "@/components/brand/turnova-lockup";
@@ -39,8 +40,11 @@ const navConfig: NavItem[] = [
   { label: "Autorizaciones", href: "/autorizaciones", icon: ShieldCheck },
   { label: "Estudios / Grupos", href: "/estudios", icon: FlaskConical },
   { label: "Cupos Semanales", href: "/cupos", icon: LayoutGrid },
+  { label: "Usuarios", href: "/usuarios", icon: UserCog },
   { label: "Configuración", href: "/configuracion", icon: Settings },
 ];
+
+const SOLO_ADMIN = ["/usuarios", "/configuracion"];
 
 export function Sidebar({
   pedidosPendientes = 0,
@@ -53,7 +57,7 @@ export function Sidebar({
   const esAdmin = rol === "admin" || rol === "superadmin";
   // Configuración (incluye gestión de usuarios) solo para admin/superadmin.
   const navConfigVisible = navConfig.filter(
-    (item) => item.href !== "/configuracion" || esAdmin,
+    (item) => !SOLO_ADMIN.includes(item.href) || esAdmin,
   );
 
   return (
