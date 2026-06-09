@@ -1,4 +1,4 @@
-import { createClient, createPublicClient } from "@/lib/supabase/server";
+import { createClient, createPublicClient, createServiceClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-session";
 import { esAdmin } from "@/lib/auth/roles";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CentroMedicoForm } from "@/components/configuracion/centro-medico-form";
 import { IntegracionClaude } from "@/components/configuracion/integracion-claude";
+import { IntegracionBotmaker } from "@/components/configuracion/integracion-botmaker";
 import { Separator } from "@/components/ui/separator";
 import { Building2, Users, Settings, Plug, CreditCard } from "lucide-react";
 
@@ -50,6 +51,19 @@ export default async function ConfiguracionPage() {
     .eq("activo", true);
 
   const profile = { tenants: tenant, tenant_id: user.tenant_id };
+
+  // BOTMAKER: URL del webhook (incluye el secreto) y estado de conexion.
+  const webhookSecret = process.env.BOTMAKER_WEBHOOK_SECRET ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://turnova-app.vercel.app";
+  const botmakerWebhookUrl = webhookSecret
+    ? `${baseUrl}/api/webhooks/botmaker/${webhookSecret}`
+    : "";
+  // "Conectado" = ya entro al menos un pedido. Usamos service client (bypassa RLS).
+  // Si la tabla todavia no existe, count queda undefined y connected = false (no rompe).
+  const { count: botmakerCount } = await createServiceClient()
+    .from("pedidos_entrantes")
+    .select("*", { count: "exact", head: true });
+  const botmakerConnected = (botmakerCount ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -156,11 +170,7 @@ export default async function ConfiguracionPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <IntegracionRow
-            nombre="BOTMAKER"
-            descripcion="Chatbot principal · API v2.0 con webhooks"
-            estado="conectar"
-          />
+          <IntegracionBotmaker webhookUrl={botmakerWebhookUrl} connected={botmakerConnected} />
           <Separator />
           <IntegracionClaude model="claude-opus-4-7" connected={!!process.env.ANTHROPIC_API_KEY} />
           <Separator />
